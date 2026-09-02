@@ -1,0 +1,111 @@
+--- # Donnees migrees depuis helper.js. Depot prive : ne pas rendre public.
+
+landlord:
+  title: M.
+  first_name: Peter
+  last_name: Pribylina
+  address_lines:
+    - 21 rue Hélène Boucher
+    - 59700 Marcq en Baroeul
+  city: Marcq en Baroeul
+  email: peter.pribylina@gmail.com
+  # Utilises uniquement par l'attestation d'hebergement.
+  birth_date: 15 août 1978
+  birth_place: Banska Bystrica, SLOVAQUIE
+
+assets:
+  logo: img/logo-coloc.png
+  watermark: img/logo-coloc-watermark.png
+  signature: img/signature.png
+
+properties:
+  anzin:
+    address: 3 impasse Lecomte, 59410 Anzin
+    folder: C:/Users/P5073668/Documents/quittances/Coloc_Anzin/Locataires_Anzin
+  vals:
+    address: 14 avenue de Condé, 59300 Valenciennes
+    folder: C:/Users/P5073668/Documents/quittances/Coloc_Vals/Locataires_Vals
+  lille:
+    address: 84 rue Jules Vallès, 59800 Lille
+    folder: C:/Users/P5073668/Documents/quittances/Appart_Lille/Location
+
+# rent / charges : facultatifs. S'ils sont renseignes, --loyer et --charges
+# deviennent inutiles en ligne de commande.
+# birth_date / birth_place : requis seulement pour l'attestation d'hebergement.
+tenants:
+  Ismail:
+    title: M
+    first_name: Ismail
+    last_name: Boufeloussen
+    email: ismailbouf60@gmail.com
+    property: vals
+
+  Jin:
+    title: M
+    first_name: Jingyi
+    last_name: Luo
+    email: ljy1060024162@gmail.com
+    property: anzin
+
+  Zakath:
+    title: M
+    first_name: Zakath
+    last_name: Laville
+    email: zakathlaville@gmail.com
+    property: anzin
+
+  Matilde:
+    title: Mlle
+    first_name: Matilde
+    last_name: Aranibar Campero
+    email: matildearanibarcampero@gmail.com
+    property: anzin
+
+  Madina:
+    title: Mlle
+    first_name: Madina
+    last_name: Tazhbagambetova
+    email: madinaqays@gmail.com
+    property: vals
+
+  Alice:
+    title: Mlle
+    first_name: Alice
+    last_name: Rolland
+    email: arolland904@gmail.com
+    property: anzin
+
+  Xin:
+    title: Mlle
+    first_name: XinXuan
+    last_name: Li
+    email: yxtk1797@163.com
+    property: vals
+
+  Audrey:
+    title: M
+    first_name: Audrey
+    last_name: Gogoua
+    email: klebienmaxime@yahoo.fr, audreygogoua05@icloud.com
+    property: vals
+
+  Mathias:
+    title: M
+    first_name: Mathias
+    last_name: Vanzieleghem
+    email: math.vzhm@gmail.com
+    property: vals
+
+  Henri:
+    title: M
+    first_name: Henri
+    last_name: Fournet
+    email: fournethyou2008@gmail.com
+    property: vals
+
+  Peter:
+    title: M
+    first_name: Peter
+    last_name: Pribylina
+    email: peter.pribylina+qg@gmail.com
+    property: lille

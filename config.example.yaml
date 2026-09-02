@@ -1,0 +1,41 @@
+--- # Modele de configuration. Copier vers config.yaml et adapter.
+
+landlord:
+  title: M.
+  first_name: Prenom
+  last_name: Nom
+  address_lines:
+    - 1 rue de l'Exemple
+    - 59000 Lille
+  city: Lille
+  email: bailleur@example.com
+  # Utilises uniquement par l'attestation d'hebergement.
+  birth_date: 1 janvier 1980
+  birth_place: Lille, FRANCE
+
+assets:
+  logo: img/logo-coloc.png
+  watermark: img/logo-coloc-watermark.png
+  signature: img/signature.png
+
+# Un bien = une adresse + un dossier de destination des documents generes.
+properties:
+  exemple:
+    address: 2 rue des Bailleurs, 59000 Lille
+    folder: C:/Users/moi/Documents/quittances/Exemple
+
+tenants:
+  # La cle (« Alice ») est ce que l'on passe a --locataire.
+  Alice:
+    title: Mlle          # M, Mme ou Mlle : sert aussi a l'accord de « ne(e) »
+    first_name: Alice
+    last_name: Dupont    # les noms composes sont conserves entierement
+    email: alice@example.com
+    # Plusieurs destinataires : separer par des virgules.
+    property: exemple
+    # Facultatifs : evitent d'avoir a passer --loyer et --charges.
+    rent: 450.00
+    charges: 50.00
+    # Requis uniquement pour l'attestation d'hebergement.
+    birth_date: 3 mars 2001
+    birth_place: Paris, FRANCE
