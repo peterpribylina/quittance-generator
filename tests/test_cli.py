@@ -208,3 +208,23 @@ def test_envoi_refuse_sans_email(
     assert "Aucune adresse email" in erreur
     assert "tenants.Jin" in erreur
     assert next(tmp_path.rglob("*.pdf")).is_file()  # le PDF est bien produit
+
+
+def test_lot_poursuit_malgre_un_locataire_sans_loyer(
+    config_file: Path, tmp_path: Path, capsys
+) -> None:
+    """Seul Jin a un loyer configure.
+
+    Matilde et Xin doivent tous deux etre signales : l'ancien comportement
+    s'arretait sur le premier locataire en defaut.
+    """
+    code = run(config_file, "quittance", "--tous", "--periode", "2025-09",
+               "--dossier", str(tmp_path))
+    assert code == 1
+    erreur = capsys.readouterr().err
+    assert "Matilde Aranibar Campero" in erreur
+    assert "XinXuan Li" in erreur
+    assert erreur.count("Loyer inconnu") == 2
+    assert [p.name for p in tmp_path.rglob("*.pdf")] == [
+        "Quittance_de_loyer_Jingyi_LUO_2025-09.pdf"
+    ]

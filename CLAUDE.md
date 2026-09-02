@@ -99,6 +99,12 @@ complete avant de viser de vrais destinataires. `--tous` l'inclut.
 
 ## Pièges
 
+Le dossier de destination d'un locataire est déduit de `first_name`/`last_name`
+(`Tenant.slug`), accents compris : un dossier `Elsa_Moron` sur le disque et un
+`Morón` en configuration produisent deux dossiers distincts. Renommer le dossier
+plutôt que de retirer l'accent du nom, qui s'imprime sur les documents.
+
+
 `src/` n'est **pas** le code du paquet : c'est `src/data_2025.py`, des relevés
 bancaires bruts consommés par `parse_releve_de_comptes.py`, un script comptable
 indépendant du générateur de quittances. Le paquet est `quittances/`.

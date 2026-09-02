@@ -148,7 +148,13 @@ def cmd_quittance(config: Config, args: argparse.Namespace) -> int:
 
     erreurs = 0
     for tenant in tenants:
-        loyer, charges = resolve_amounts(tenant, args)
+        # Un locataire mal configure ne doit pas interrompre le lot.
+        try:
+            loyer, charges = resolve_amounts(tenant, args)
+        except CliError as exc:
+            erreurs += 1
+            print(f"{tenant.full_name} : {exc}", file=sys.stderr)
+            continue
         quittance = Quittance(
             tenant=tenant,
             period=periode,

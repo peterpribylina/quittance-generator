@@ -46,6 +46,10 @@ tenants:
     last_name: Rolland
     email: arolland904@gmail.com
     property: anzin
+    # 320 et non 340 : accord particulier avec la locataire, qui prime sur le
+    # bail. Ne pas « corriger » d'apres le contrat.
+    rent: 320.00
+    charges: 70.00
 
   Matilde:
     title: Mlle
@@ -53,11 +57,15 @@ tenants:
     last_name: Aranibar Campero
     email: matildearanibarcampero@gmail.com
     property: anzin
+    rent: 340.00
+    charges: 70.00
 
   Elsa:
     first_name: Elsa
     last_name: Morón
     property: anzin
+    rent: 350.00
+    charges: 70.00
     title: Mlle
     email: elsa.moron@bluewin.ch
 
@@ -65,6 +73,8 @@ tenants:
     first_name: Baptiste
     last_name: Dos Santos
     property: anzin
+    rent: 340.00
+    charges: 70.00
     title: M
     email: dossantos.baptiste01@gmail.com
 
@@ -72,6 +82,8 @@ tenants:
     first_name: Aakash
     last_name: Rameshkumar
     property: anzin
+    rent: 340.00
+    charges: 70.00
     title: M
     email: aakashkumarr@gmail.com
 
@@ -83,6 +95,8 @@ tenants:
     last_name: Vanzieleghem
     email: math.vzhm@gmail.com
     property: vals
+    rent: 320.00
+    charges: 70.00
 
   Madina:
     title: Mlle
@@ -90,6 +104,8 @@ tenants:
     last_name: Tazhbagambetova
     email: madinaqays@gmail.com
     property: vals
+    rent: 340.00
+    charges: 70.00
 
   Henri:
     title: M
@@ -97,11 +113,15 @@ tenants:
     last_name: Fournet
     email: fournethyou2008@gmail.com
     property: vals
+    rent: 390.00
+    charges: 80.00
 
   Eliot:
     first_name: Eliot
     last_name: Fuks
     property: vals
+    rent: 350.00
+    charges: 70.00
     title: M
     email: ef4100@yahoo.it
 
@@ -109,6 +129,10 @@ tenants:
     first_name: Mathias
     last_name: Pacheco
     property: vals
+    rent: 340.00
+    # 90 et non 70 comme les autres : vehicule electrique recharge sur place,
+    # donc consommation electrique superieure.
+    charges: 90.00
     title: M
     email: pmathias@gmail.com
 
