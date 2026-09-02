@@ -15,7 +15,7 @@ Windows.
 python -m pip install -e ".[dev]"   # installe le paquet et les outils de test
 python -m pytest                    # 89 tests
 python -m pytest tests/test_pdf.py::test_quittance_produit_un_pdf_a4   # un seul test
-python -m quittances locataires     # verifie que config.yaml se charge
+quittances locataires               # verifie que config.yaml se charge
 ```
 
 Il n'y a ni linter ni formateur configurés.
@@ -41,6 +41,13 @@ locataires). Aucune donnée nominative ne doit revenir dans les sources — c'é
 le défaut de l'ancien `helper.js`, remplacé lors du portage Node → Python.
 
 ## Invariants à ne pas casser
+
+`quittance` est la sous-commande par défaut, injectée par
+`inject_default_command` avant argparse. Elle doit sauter les options globales
+(`--config` et sa valeur, `--config=x`) sans prendre la valeur d'une option de
+sous-commande pour un nom de commande — c'est le piège que couvre
+`TestCommandeParDefaut`.
+
 
 **L'email ne part jamais sans `--envoyer`.** L'ancienne version envoyait à chaque
 exécution, y compris quand le PDF n'avait pas été régénéré. Un envoi groupé

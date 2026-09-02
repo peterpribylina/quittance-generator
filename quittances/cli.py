@@ -1,9 +1,11 @@
 """Interface en ligne de commande.
 
-    python -m quittances locataires
-    python -m quittances quittance --locataire Jin --periode 2025-09
-    python -m quittances quittance --tous --bien anzin --periode 2025-09 --envoyer
-    python -m quittances attestation --locataire Jin --depuis 2025-09-01
+    quittances --maison anzin --envoyer      mois courant, toute la maison
+    quittances --locataire Jin --periode 2026-09
+    quittances locataires
+    quittances attestation --locataire Jin --depuis 2026-09-01
+
+« quittance » est la commande par defaut : elle peut etre omise.
 
 L'envoi d'email n'a jamais lieu sans `--envoyer` : l'ancienne version envoyait
 systematiquement, y compris quand le PDF n'avait pas ete regenere.
@@ -42,8 +44,10 @@ def parse_date(value: str) -> date:
     )
 
 
-def parse_period(value: str) -> date:
-    """« 2025-09 » -> premier jour du mois."""
+def parse_period(value: str | None) -> date:
+    """« 2025-09 » -> premier jour du mois. Sans valeur : le mois courant."""
+    if value is None:
+        return date.today().replace(day=1)
     try:
         return datetime.strptime(value, "%Y-%m").date().replace(day=1)
     except ValueError as exc:
@@ -58,18 +62,23 @@ def _amount(value: str) -> Decimal:
 
 
 def select_tenants(config: Config, args: argparse.Namespace) -> list[Tenant]:
-    if args.tous:
+    """--locataire cible des personnes, --maison une adresse, --tous tout le monde.
+
+    `--maison` sans `--locataire` vaut « tous les locataires de cette maison » : il n'y
+    a pas d'autre lecture raisonnable, autant ne pas exiger `--tous` en plus.
+    """
+    if args.maison or args.tous:
         tenants = list(config.tenants.values())
-        if args.bien:
-            tenants = [t for t in tenants if t.property.key == args.bien]
-            if not tenants:
+        if args.maison:
+            if args.maison not in config.properties:
                 connus = ", ".join(sorted(config.properties))
-                raise CliError(
-                    f"Aucun locataire pour le bien « {args.bien} ». Biens : {connus}."
-                )
+                raise CliError(f"Maison « {args.maison} » inconnue. Maisons : {connus}.")
+            tenants = [t for t in tenants if t.property.key == args.maison]
+            if not tenants:
+                raise CliError(f"Aucun locataire dans la maison « {args.maison} ».")
         return tenants
     if not args.locataire:
-        raise CliError("Precisez --locataire NOM (ou --tous).")
+        raise CliError("Precisez --locataire NOM, --maison CLE ou --tous.")
     return [config.tenant(nom) for nom in args.locataire]
 
 
@@ -119,7 +128,7 @@ def _deliver(
 
 def cmd_tenants(config: Config, args: argparse.Namespace) -> int:
     largeur = max((len(cle) for cle in config.tenants), default=4)
-    print(f"{'CLE'.ljust(largeur)}  {'NOM'.ljust(28)}  {'BIEN'.ljust(8)}  LOYER")
+    print(f"{'CLE'.ljust(largeur)}  {'NOM'.ljust(28)}  {'MAISON'.ljust(8)}  LOYER")
     for cle, tenant in sorted(config.tenants.items()):
         loyer = format_amount(tenant.rent) if tenant.rent is not None else "-"
         charges = (
@@ -140,6 +149,10 @@ def cmd_quittance(config: Config, args: argparse.Namespace) -> int:
     emise_le = parse_date(args.date) if args.date else date.today()
     tenants = select_tenants(config, args)
     racine = Path(args.dossier) if args.dossier else None
+
+    # La periode est implicite par defaut : on l'affiche pour qu'une erreur de
+    # mois se voie immediatement, avant tout envoi.
+    print(f"Quittances de {periode.strftime('%m/%Y')} ({len(tenants)} locataires)\n")
 
     if args.envoyer and len(tenants) > 1:
         noms = ", ".join(t.full_name for t in tenants)
@@ -237,8 +250,8 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
                         help="cle du locataire (repetable)")
     parser.add_argument("--tous", action="store_true",
                         help="tous les locataires")
-    parser.add_argument("--bien", metavar="CLE",
-                        help="restreint --tous a un bien")
+    parser.add_argument("--maison", metavar="CLE",
+                        help="tous les locataires de cette maison")
     parser.add_argument("--dossier", metavar="CHEMIN",
                         help="racine de sortie (defaut : dossier du bien)")
     parser.add_argument("--forcer", action="store_true",
@@ -262,7 +275,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_quittance = sous.add_parser("quittance", help="genere une quittance de loyer")
     _add_common_arguments(p_quittance)
-    p_quittance.add_argument("--periode", required=True, metavar="AAAA-MM")
+    p_quittance.add_argument("--periode", metavar="AAAA-MM",
+                             help="defaut : mois courant")
     p_quittance.add_argument("--date-paiement", metavar="DATE",
                              help="defaut : premier jour de la periode")
     p_quittance.add_argument("--loyer", type=_amount, metavar="MONTANT")
@@ -278,9 +292,41 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+COMMANDES = ("quittance", "attestation", "locataires")
+
+
+def inject_default_command(argv: Sequence[str]) -> list[str]:
+    """Insere « quittance » quand aucune commande n'est donnee.
+
+    C'est l'usage courant. Il faut sauter les options globales, y compris la
+    valeur de `--config`, pour ne pas la prendre pour un nom de commande.
+    """
+    argv = list(argv)
+    index = 0
+    while index < len(argv):
+        jeton = argv[index]
+        if jeton in ("-h", "--help"):
+            return argv
+        if jeton == "--config":
+            index += 2  # l'option et sa valeur
+            continue
+        if jeton.startswith("--config="):
+            index += 1
+            continue
+        # La commande, si elle est donnee, suit immediatement les options
+        # globales. Tout autre jeton signifie qu'elle est absente : une option
+        # de sous-commande (--maison) comme sa valeur (anzin) arrivent ici.
+        break
+    if index < len(argv) and argv[index] in COMMANDES:
+        return argv
+    return argv[:index] + ["quittance"] + argv[index:]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(inject_default_command(
+        sys.argv[1:] if argv is None else argv
+    ))
     try:
         config = Config.load(args.config)
         manquants = config.assets.missing()

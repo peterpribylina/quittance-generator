@@ -122,44 +122,49 @@ facultatif :
 
 ## Utilisation
 
+Après installation, la commande s'appelle `quittances`. La sous-commande
+`quittance` est implicite, la période vaut le mois courant, et `--maison`
+sous-entend « tous les locataires de cette maison ». L'envoi mensuel tient donc
+en une ligne :
+
+```bash
+quittances --maison anzin --envoyer
+```
+
+Un seul locataire, pour un mois précis :
+
+```bash
+quittances --locataire Jin --periode 2026-09
+```
+
+Toutes les maisons d'un coup :
+
+```bash
+quittances --tous --envoyer
+```
+
 Lister les locataires configurés :
 
 ```bash
-python -m quittances locataires
-```
-
-Générer une quittance (loyer et charges repris de `config.yaml` s'ils y sont) :
-
-```bash
-python -m quittances quittance --locataire Jin --periode 2025-09
-```
-
-Générer **et** envoyer par email :
-
-```bash
-python -m quittances quittance --locataire Jin --periode 2025-09 --envoyer
-```
-
-Tout un bien en une fois :
-
-```bash
-python -m quittances quittance --tous --bien anzin --periode 2025-09 --envoyer
+quittances locataires
 ```
 
 Une attestation d'hébergement :
 
 ```bash
-python -m quittances attestation --locataire Jin --depuis 2025-09-01
+quittances attestation --locataire Jin --depuis 2026-09-01
 ```
+
+Sans installation, tout fonctionne aussi via `python -m quittances`.
 
 ### Options
 
 | Option | Effet |
 |---|---|
 | `--locataire CLE` | locataire ciblé, répétable |
-| `--tous` | tous les locataires |
-| `--bien CLE` | restreint `--tous` à un bien |
-| `--periode AAAA-MM` | mois de la quittance (obligatoire) |
+| `--tous` | tous les locataires, toutes maisons confondues |
+| `--maison CLE` | tous les locataires de cette maison |
+| `--periode AAAA-MM` | mois de la quittance, défaut : mois courant |
 | `--date-paiement DATE` | défaut : 1er jour de la période |
 | `--loyer` / `--charges` | remplacent les montants de `config.yaml` |
 | `--date DATE` | date d'émission, défaut : aujourd'hui |

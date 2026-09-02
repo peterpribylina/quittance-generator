@@ -128,7 +128,7 @@ def test_echec_d_envoi_renvoie_un_code_erreur(
 def test_generation_pour_tous_les_locataires_d_un_bien(
     config_file: Path, tmp_path: Path
 ) -> None:
-    code = run(config_file, "quittance", "--tous", "--bien", "anzin", "--periode",
+    code = run(config_file, "quittance", "--tous", "--maison", "anzin", "--periode",
                "2025-09", "--loyer", "400", "--dossier", str(tmp_path))
     assert code == 0
     assert len(list(tmp_path.rglob("*.pdf"))) == 2
@@ -178,9 +178,13 @@ def test_config_absente(tmp_path: Path, capsys) -> None:
     assert "introuvable" in capsys.readouterr().err
 
 
-def test_commande_obligatoire() -> None:
-    with pytest.raises(SystemExit):
-        cli.main([])
+def test_sans_argument_demande_une_cible(config_file: Path, capsys) -> None:
+    """« quittance » etant implicite, l'absence d'argument n'est plus une
+    erreur d'argparse mais un defaut de cible, signale clairement."""
+    assert run(config_file) == 1
+    erreur = capsys.readouterr().err
+    assert "--locataire" in erreur
+    assert "--maison" in erreur
 
 
 def test_envoi_refuse_sans_email(
@@ -228,3 +232,52 @@ def test_lot_poursuit_malgre_un_locataire_sans_loyer(
     assert [p.name for p in tmp_path.rglob("*.pdf")] == [
         "Quittance_de_loyer_Jingyi_LUO_2025-09.pdf"
     ]
+
+
+class TestCommandeParDefaut:
+    """« quittance » est implicite : c'est l'usage courant."""
+
+    def test_commande_omise(self) -> None:
+        assert cli.inject_default_command(["--maison", "anzin"]) == [
+            "quittance", "--maison", "anzin"
+        ]
+
+    def test_commande_explicite_inchangee(self) -> None:
+        argv = ["attestation", "--locataire", "Jin", "--depuis", "2025-09-01"]
+        assert cli.inject_default_command(argv) == argv
+
+    def test_locataires_inchangee(self) -> None:
+        assert cli.inject_default_command(["locataires"]) == ["locataires"]
+
+    def test_option_globale_avant_la_commande(self) -> None:
+        assert cli.inject_default_command(["--config", "a.yaml", "locataires"]) == [
+            "--config", "a.yaml", "locataires"
+        ]
+
+    def test_valeur_de_config_non_prise_pour_une_commande(self) -> None:
+        """« --config quittance » ne doit pas passer pour la commande."""
+        assert cli.inject_default_command(["--config", "quittance", "--tous"]) == [
+            "--config", "quittance", "quittance", "--tous"
+        ]
+
+    def test_config_avec_signe_egal(self) -> None:
+        assert cli.inject_default_command(["--config=a.yaml", "--tous"]) == [
+            "--config=a.yaml", "quittance", "--tous"
+        ]
+
+    def test_sans_argument(self) -> None:
+        assert cli.inject_default_command([]) == ["quittance"]
+
+    def test_aide_preservee(self) -> None:
+        assert cli.inject_default_command(["--help"]) == ["--help"]
+
+
+def test_periode_par_defaut_mois_courant(
+    config_file: Path, tmp_path: Path, capsys
+) -> None:
+    from datetime import date
+
+    assert run(config_file, "--locataire", "Jin", "--dossier", str(tmp_path)) == 0
+    attendu = date.today().strftime("%Y-%m")
+    assert list(tmp_path.rglob(f"*{attendu}.pdf"))
+    assert date.today().strftime("%m/%Y") in capsys.readouterr().out
