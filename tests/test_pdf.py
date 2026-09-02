@@ -58,11 +58,11 @@ def test_quittance_contient_les_mentions_obligatoires(
     texte = extract_text(render_quittance(quittance, config, tmp_path / "q.pdf"))
     for attendu in (
         "Quittance de loyer",
-        "Loyer septembre 2025",
+        "Septembre 2025",
         "M. LUO Jingyi",
         "01/09/2025",
         "3 impasse Lecomte, 59410 Anzin",
-        "en paiement du terme du mois septembre 2025",
+        "en paiement du terme du mois de septembre 2025",
         "Fait à Marcq en Baroeul le 02/09/2025",
         "M. PRIBYLINA Peter",
         "Sous réserve d'encaissement.",
@@ -103,7 +103,7 @@ def test_attestation_produit_un_pdf(config: Config, tmp_path: Path) -> None:
         issued_on=date(2025, 9, 2),
     )
     texte = extract_text(render_attestation(attestation, config, tmp_path / "a.pdf"))
-    assert "ATTESTATION D'HÉBERGEMENT" in texte
+    assert "Attestation d'hébergement" in texte
     assert "Je soussigné Peter PRIBYLINA" in texte
     assert "Mlle. ARANIBAR CAMPERO Matilde" in texte
     assert "La Paz, BOLIVIE" in texte
@@ -155,7 +155,7 @@ def test_quittance_sans_civilite(config: Config, raw_config: dict, tmp_path: Pat
         issued_on=date(2025, 9, 2),
     )
     texte = extract_text(render_quittance(quittance, config_sans_titre, tmp_path / "q.pdf"))
-    assert "Reçu de : LUO Jingyi" in texte
+    assert "Reçu de LUO Jingyi" in texte
 
 
 def test_attestation_sans_civilite_n_accorde_pas(

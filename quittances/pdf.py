@@ -1,15 +1,13 @@
 """Rendu PDF via ReportLab.
 
-La mise en page reprend celle de l'ancienne version pdfkit (cadre, deux
-colonnes, filigrane, signature) avec deux differences assumees :
-
-* page A4 au lieu de Letter US (format attendu pour un document francais) ;
-* filigrane contenu dans le cadre. L'ancienne version le posait en (410, 410)
-  avec `fit: [500, 500]`, soit 300 pt hors de la page.
+Mise en page editoriale : pas de cadre, hierarchie portee par la typographie et
+le blanc, montant regle en element dominant. Elle remplace la grille heritee de
+pdfkit, dont le cadre occupait un tiers de page sans porter d'information et
+dont le filigrane debordait hors de la page.
 
 ReportLab place l'origine en bas a gauche ; les constantes ci-dessous sont
-exprimees depuis le haut de la page, comme dans le code d'origine, et
-converties par `_y()`.
+exprimees depuis le haut de la page, plus naturelles a lire pour une mise en
+page, et converties par `_y()`.
 """
 
 from __future__ import annotations
@@ -17,10 +15,11 @@ from __future__ import annotations
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from reportlab.lib.colors import black, grey
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.colors import HexColor
+from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import Paragraph
 
@@ -32,122 +31,26 @@ PAGE_WIDTH, PAGE_HEIGHT = A4
 FONT = "Helvetica"
 FONT_BOLD = "Helvetica-Bold"
 
-FRAME_LEFT = 50.0
-FRAME_RIGHT = 545.0
-FRAME_TOP = 200.0
-FRAME_HEADER_RULE = 255.0
-FRAME_BOTTOM = 660.0
+# Palette : ardoise pour les titres, rouge du logo en accent, verts et gris
+# reserves aux statuts et aux etiquettes.
+NOIR = HexColor("#1A1A1A")
+ARDOISE = HexColor("#2F3437")
+ACCENT = HexColor("#BE1E2F")
+GRIS = HexColor("#575656")
+GRIS_MOYEN = HexColor("#8A8A8A")
+GRIS_CLAIR = HexColor("#D4D4D6")
+VERT = HexColor("#2E7D5B")
 
-CONTENT_LEFT = 60.0
-COLUMN_2_LEFT = 310.0
-DIVIDER_X = 300.0
+MARGE = 56.0
+DROITE = PAGE_WIDTH - MARGE
+COLONNE_2 = MARGE + 300.0
+LARGEUR_COLONNE_1 = 265.0
 
-COLUMN_1_WIDTH = DIVIDER_X - 15.0 - CONTENT_LEFT
-COLUMN_2_WIDTH = FRAME_RIGHT - 10.0 - COLUMN_2_LEFT
+# Boite de la signature. L'image conserve ses proportions a l'interieur.
+SIGNATURE_LARGEUR = 240.0
+SIGNATURE_HAUTEUR = 124.0
 
-BODY = ParagraphStyle("body", fontName=FONT, fontSize=10, leading=13, textColor=black)
-TITLE = ParagraphStyle("title", parent=BODY, fontName=FONT_BOLD, alignment=TA_CENTER)
-FOOTER = ParagraphStyle(
-    "footer", fontName=FONT, fontSize=8, leading=10, textColor=grey, alignment=TA_CENTER
-)
-
-
-def _y(top_offset: float, height: float = 0.0) -> float:
-    """Convertit une ordonnee mesuree depuis le haut en ordonnee ReportLab."""
-    return PAGE_HEIGHT - top_offset - height
-
-
-def _paragraph(
-    canvas: pdfcanvas.Canvas,
-    markup: str,
-    x: float,
-    top: float,
-    width: float,
-    style: ParagraphStyle = BODY,
-) -> float:
-    """Dessine un paragraphe dont le haut est a `top`. Renvoie sa hauteur."""
-    para = Paragraph(markup, style)
-    _, height = para.wrapOn(canvas, width, PAGE_HEIGHT)
-    para.drawOn(canvas, x, _y(top, height))
-    return height
-
-
-def _bold(value: object) -> str:
-    """Echappe une valeur et la met en gras dans le balisage Paragraph."""
-    return f"<b>{escape(str(value))}</b>"
-
-
-def _draw_landlord_header(canvas: pdfcanvas.Canvas, config: Config) -> None:
-    landlord = config.landlord
-    _paragraph(canvas, "Bailleur", CONTENT_LEFT, 50.0, 250.0)
-    _paragraph(canvas, escape(landlord.display_name), CONTENT_LEFT, 80.0, 250.0)
-    for index, line in enumerate(landlord.address_lines):
-        _paragraph(canvas, escape(line), CONTENT_LEFT, 95.0 + index * 15.0, 250.0)
-
-    logo_size = 50.0
-    canvas.drawImage(
-        str(config.assets.logo),
-        FRAME_RIGHT - logo_size,
-        _y(50.0, logo_size),
-        width=logo_size,
-        height=logo_size,
-        mask="auto",
-    )
-
-
-WATERMARK_ALPHA = 0.14
-
-
-def _draw_watermark(canvas: pdfcanvas.Canvas, config: Config) -> None:
-    """Filigrane en bas a droite, attenue et contenu dans le cadre."""
-    size = 150.0
-    canvas.saveState()
-    # Alpha non-couvrant : s'applique aussi aux images (operateur `ca`).
-    canvas.setFillAlpha(WATERMARK_ALPHA)
-    canvas.drawImage(
-        str(config.assets.watermark),
-        FRAME_RIGHT - size - 10.0,
-        _y(FRAME_BOTTOM - 10.0, 0.0),
-        width=size,
-        height=size,
-        mask="auto",
-        preserveAspectRatio=True,
-        anchor="sw",
-    )
-    canvas.restoreState()
-
-
-def _draw_signature(canvas: pdfcanvas.Canvas, config: Config, top: float) -> None:
-    width = 140.0
-    height = 95.0
-    canvas.drawImage(
-        str(config.assets.signature),
-        CONTENT_LEFT + 10.0,
-        _y(top, height),
-        width=width,
-        height=height,
-        mask="auto",
-        preserveAspectRatio=True,
-        anchor="nw",
-    )
-
-
-def _draw_frame(canvas: pdfcanvas.Canvas) -> None:
-    canvas.setLineWidth(1)
-    canvas.setStrokeColor(black)
-    canvas.rect(
-        FRAME_LEFT,
-        _y(FRAME_BOTTOM),
-        FRAME_RIGHT - FRAME_LEFT,
-        FRAME_BOTTOM - FRAME_TOP,
-        stroke=1,
-        fill=0,
-    )
-    canvas.line(FRAME_LEFT, _y(FRAME_HEADER_RULE), FRAME_RIGHT, _y(FRAME_HEADER_RULE))
-    canvas.line(DIVIDER_X, _y(FRAME_HEADER_RULE), DIVIDER_X, _y(FRAME_BOTTOM))
-
-
-LEGAL_NOTICE = (
+MENTION_LEGALE = (
     "Le paiement de la présente n'emporte pas présomption de paiement des termes "
     "antérieurs. Cette quittance ou ce reçu annule tous les reçus qui auraient pu "
     "être donnés pour acompte versé sur le présent terme. En cas de congé "
@@ -155,6 +58,142 @@ LEGAL_NOTICE = (
     "d'occupation et ne saurait être considéré comme un titre d'occupation. "
     "Sous réserve d'encaissement."
 )
+
+
+def _y(depuis_le_haut: float, hauteur: float = 0.0) -> float:
+    """Convertit une ordonnee mesuree depuis le haut en ordonnee ReportLab."""
+    return PAGE_HEIGHT - depuis_le_haut - hauteur
+
+
+def _ascent(police: str, taille: float) -> float:
+    return pdfmetrics.getAscent(police) / 1000.0 * taille
+
+
+def _text(canvas, contenu, x, haut, police=FONT, taille=9.0, couleur=NOIR,
+          interlettrage=0.0) -> None:
+    """Ecrit une ligne dont le haut des capitales est a `haut`.
+
+    L'interlettrage n'existe que sur l'objet texte, pas sur le canvas.
+    """
+    canvas.saveState()
+    objet = canvas.beginText(x, _y(haut) - _ascent(police, taille))
+    objet.setFont(police, taille)
+    objet.setFillColor(couleur)
+    if interlettrage:
+        objet.setCharSpace(interlettrage)
+    objet.textOut(contenu)
+    canvas.drawText(objet)
+    canvas.restoreState()
+
+
+def _text_right(canvas, contenu, x_droite, haut, police=FONT, taille=9.0,
+                couleur=NOIR) -> None:
+    canvas.saveState()
+    canvas.setFont(police, taille)
+    canvas.setFillColor(couleur)
+    canvas.drawRightString(x_droite, _y(haut) - _ascent(police, taille), contenu)
+    canvas.restoreState()
+
+
+def _label(canvas, contenu, x, haut, couleur=GRIS_MOYEN, taille=6.5) -> None:
+    """Etiquette en capitales espacees, au-dessus de la donnee qu'elle nomme."""
+    _text(canvas, contenu.upper(), x, haut, FONT_BOLD, taille, couleur,
+          interlettrage=1.1)
+
+
+def _style(nom: str, **surcharges) -> ParagraphStyle:
+    base = dict(fontName=FONT, fontSize=9.0, leading=13.0, textColor=NOIR)
+    base.update(surcharges)
+    return ParagraphStyle(nom, **base)
+
+
+CORPS = _style("corps", fontSize=9.5, leading=15.5, alignment=TA_JUSTIFY)
+MENTION = _style("mention", fontSize=6.4, leading=9.0, textColor=GRIS_MOYEN,
+                 alignment=TA_JUSTIFY)
+
+
+def _paragraph(canvas, markup, x, haut, largeur, style=CORPS) -> float:
+    """Dessine un paragraphe dont le haut est a `haut`. Renvoie sa hauteur."""
+    para = Paragraph(markup, style)
+    _, hauteur = para.wrapOn(canvas, largeur, PAGE_HEIGHT)
+    para.drawOn(canvas, x, _y(haut, hauteur))
+    return hauteur
+
+
+def _bold(valeur: object) -> str:
+    """Echappe une valeur et la met en gras dans le balisage Paragraph."""
+    return f"<b>{escape(str(valeur))}</b>"
+
+
+def _rule(canvas, haut, x1=MARGE, x2=DROITE, couleur=GRIS_CLAIR,
+          epaisseur=0.5) -> None:
+    canvas.saveState()
+    canvas.setStrokeColor(couleur)
+    canvas.setLineWidth(epaisseur)
+    canvas.line(x1, _y(haut), x2, _y(haut))
+    canvas.restoreState()
+
+
+def _draw_header(canvas, config: Config) -> None:
+    """Bloc bailleur a gauche, logo a droite."""
+    landlord = config.landlord
+    taille_logo = 38.0
+    canvas.drawImage(
+        str(config.assets.logo), DROITE - taille_logo, _y(52.0, taille_logo),
+        width=taille_logo, height=taille_logo, mask="auto",
+        preserveAspectRatio=True, anchor="nw",
+    )
+    _label(canvas, "Bailleur", MARGE, 52.0)
+    _text(canvas, landlord.display_name, MARGE, 66.0, FONT_BOLD, 9.5)
+    for index, ligne in enumerate(landlord.address_lines):
+        _text(canvas, ligne, MARGE, 80.0 + index * 12.0, FONT, 8.5, GRIS)
+
+
+def _draw_title(canvas, titre: str, sous_titre: str) -> None:
+    _text(canvas, titre, MARGE, 150.0, FONT_BOLD, 27.0, ARDOISE)
+    _text(canvas, sous_titre, MARGE, 186.0, FONT, 14.0, ACCENT)
+    _rule(canvas, 222.0)
+
+
+FILIGRANE_TAILLE = 160.0
+FILIGRANE_OPACITE = 0.10
+
+
+def _draw_watermark(canvas, config: Config, bas: float = 720.0) -> None:
+    """Filigrane en bas a droite, dans la zone laissee libre par la signature.
+
+    Sans effet si aucune image n'est configuree.
+    """
+    if config.assets.watermark is None:
+        return
+    canvas.saveState()
+    # Alpha non-couvrant : s'applique aussi aux images (operateur `ca`).
+    canvas.setFillAlpha(FILIGRANE_OPACITE)
+    canvas.drawImage(
+        str(config.assets.watermark),
+        DROITE - FILIGRANE_TAILLE, _y(bas),
+        width=FILIGRANE_TAILLE, height=FILIGRANE_TAILLE, mask="auto",
+        preserveAspectRatio=True, anchor="sw",
+    )
+    canvas.restoreState()
+
+
+def _draw_signature(canvas, config: Config, haut: float) -> None:
+    canvas.drawImage(
+        str(config.assets.signature), MARGE, _y(haut, SIGNATURE_HAUTEUR),
+        width=SIGNATURE_LARGEUR, height=SIGNATURE_HAUTEUR, mask="auto",
+        preserveAspectRatio=True, anchor="nw",
+    )
+
+
+def _draw_closing(canvas, config: Config, date_emission: str,
+                  haut: float = 498.0) -> None:
+    """Lieu, date d'emission et signature, en bas du document."""
+    _rule(canvas, haut)
+    _text(canvas, f"Fait à {config.landlord.city} le {date_emission}",
+          MARGE, haut + 24.0, FONT, 9.0, GRIS)
+    _label(canvas, "Signature du bailleur", MARGE, haut + 50.0)
+    _draw_signature(canvas, config, haut + 68.0)
 
 
 def render_quittance(quittance: Quittance, config: Config, path: Path) -> Path:
@@ -166,59 +205,52 @@ def render_quittance(quittance: Quittance, config: Config, path: Path) -> Path:
     canvas.setTitle(f"Quittance de loyer - {quittance.period_label}")
     canvas.setAuthor(config.landlord.legal_name)
 
-    _draw_landlord_header(canvas, config)
-    _draw_frame(canvas)
     _draw_watermark(canvas, config)
+    _draw_header(canvas, config)
+    _draw_title(canvas, "Quittance de loyer", quittance.period_label.capitalize())
 
-    frame_width = FRAME_RIGHT - FRAME_LEFT
-    _paragraph(canvas, "Quittance de loyer", FRAME_LEFT, 210.0, frame_width, TITLE)
-    _paragraph(
-        canvas,
-        f"Loyer {escape(quittance.period_label)}",
-        FRAME_LEFT,
-        227.0,
-        frame_width,
-        TITLE,
-    )
+    # Le locataire cherche d'abord combien, et pour quand : ces deux donnees
+    # passent avant le detail comptable.
+    _label(canvas, "Montant réglé", MARGE, 246.0)
+    _text(canvas, quittance.total_label, MARGE, 260.0, FONT_BOLD, 30.0, NOIR)
+    _label(canvas, "Payé le", DROITE - 120.0, 246.0)
+    _text(canvas, quittance.payment_date_label, DROITE - 120.0, 262.0, FONT, 13.0,
+          GRIS)
+
+    _rule(canvas, 322.0)
 
     tenant = quittance.tenant
-    left_column = (
-        (270.0, f"Reçu de : {escape(tenant.display_name)}"),
-        (305.0, f"la somme de {_bold(quittance.total_label)}"),
-        (330.0, f"le {_bold(quittance.payment_date_label)}"),
-        (
-            360.0,
-            "pour loyer et accessoires des locaux situés au : "
-            f"{_bold(tenant.address)}",
-        ),
-        (
-            415.0,
-            f"en paiement du terme du mois {_bold(quittance.period_label)}",
-        ),
-        (
-            470.0,
-            f"Fait à {escape(config.landlord.city)} le "
-            f"{_bold(quittance.issued_on_label)}",
-        ),
-        (500.0, "Signature du bailleur"),
+    _paragraph(
+        canvas,
+        f"Reçu de {_bold(tenant.display_name)} la somme de "
+        f"{_bold(quittance.total_label)}, pour loyer et accessoires des locaux "
+        f"situés au {_bold(tenant.address)}, en paiement du terme du mois de "
+        f"{_bold(quittance.period_label)}.",
+        MARGE, 348.0, LARGEUR_COLONNE_1,
     )
-    for top, markup in left_column:
-        _paragraph(canvas, markup, CONTENT_LEFT, top, COLUMN_1_WIDTH)
 
-    _draw_signature(canvas, config, top=520.0)
+    _label(canvas, "Détail du terme", COLONNE_2, 348.0)
+    haut = 372.0
+    for libelle, valeur in (
+        ("Loyer nu", quittance.rent_label),
+        ("Provisions de charges", quittance.charges_label),
+    ):
+        _text(canvas, libelle, COLONNE_2, haut, FONT, 9.0, GRIS)
+        _text_right(canvas, valeur, DROITE, haut, FONT, 9.0)
+        haut += 20.0
 
-    right_column = (
-        (270.0, "<b>Détail :</b>"),
-        (305.0, f"- Loyer nu : {_bold(quittance.rent_label)}"),
-        (330.0, f"- Provisions de charges : {_bold(quittance.charges_label)}"),
-        (390.0, f"Montant total du terme : {_bold(quittance.total_label)}"),
-        (420.0, f"- Paiement locataire : {_bold(quittance.total_label)}"),
-        (450.0, f"- Solde à payer : {_bold('0,00 €')}"),
-    )
-    for top, markup in right_column:
-        _paragraph(canvas, markup, COLUMN_2_LEFT, top, COLUMN_2_WIDTH)
+    _rule(canvas, haut + 2.0, COLONNE_2, DROITE)
+    haut += 12.0
+    _text(canvas, "Total du terme", COLONNE_2, haut, FONT_BOLD, 9.5)
+    _text_right(canvas, quittance.total_label, DROITE, haut, FONT_BOLD, 9.5)
+    haut += 20.0
+    _text(canvas, "Solde à payer", COLONNE_2, haut, FONT, 9.0, GRIS)
+    _text_right(canvas, "0,00 €", DROITE, haut, FONT, 9.0, VERT)
 
-    _paragraph(canvas, LEGAL_NOTICE, FRAME_LEFT, 700.0, frame_width, FOOTER)
+    _draw_closing(canvas, config, quittance.issued_on_label)
+
+    _rule(canvas, 742.0)
+    _paragraph(canvas, MENTION_LEGALE, MARGE, 754.0, DROITE - MARGE, MENTION)
 
     canvas.showPage()
     canvas.save()
@@ -237,13 +269,9 @@ def render_attestation(attestation: Attestation, config: Config, path: Path) -> 
     canvas.setTitle("Attestation d'hébergement")
     canvas.setAuthor(landlord.legal_name)
 
-    _draw_landlord_header(canvas, config)
     _draw_watermark(canvas, config)
-
-    frame_width = FRAME_RIGHT - FRAME_LEFT
-    _paragraph(
-        canvas, "ATTESTATION D'HÉBERGEMENT", FRAME_LEFT, 210.0, frame_width, TITLE
-    )
+    _draw_header(canvas, config)
+    _draw_title(canvas, "Attestation d'hébergement", str(attestation.issued_on.year))
 
     naissance_bailleur = ""
     if landlord.birth_date and landlord.birth_place:
@@ -270,20 +298,11 @@ def render_attestation(attestation: Attestation, config: Config, path: Path) -> 
         "Cette attestation est établie pour servir et valoir ce que de droit.",
     )
 
-    top = 270.0
+    haut = 260.0
     for markup in corps:
-        hauteur = _paragraph(canvas, markup, CONTENT_LEFT, top, frame_width - 20.0)
-        top += hauteur + 18.0
+        haut += _paragraph(canvas, markup, MARGE, haut, DROITE - MARGE) + 20.0
 
-    _paragraph(
-        canvas,
-        f"Fait à {escape(landlord.city)} le {_bold(attestation.issued_on_label)}",
-        CONTENT_LEFT,
-        top + 30.0,
-        frame_width - 20.0,
-    )
-    _paragraph(canvas, "Signature du bailleur", CONTENT_LEFT, top + 60.0, 250.0)
-    _draw_signature(canvas, config, top=top + 80.0)
+    _draw_closing(canvas, config, attestation.issued_on_label, haut=max(haut + 20.0, 460.0))
 
     canvas.showPage()
     canvas.save()

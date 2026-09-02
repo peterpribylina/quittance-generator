@@ -15,7 +15,9 @@ landlord:
 
 assets:
   logo: img/logo-coloc.png
-  watermark: img/logo-coloc-watermark.png
+  # Filigrane facultatif : decommenter pour le faire reapparaitre
+  # en bas a droite des documents.
+  # watermark: img/logo-coloc-watermark.png
   signature: img/signature.png
 
 # Un bien = une adresse + un dossier de destination des documents generes.

@@ -5,23 +5,108 @@ et les envoie par email aux locataires.
 
 ## Installation
 
+### 1. Prérequis
+
+Python 3.10 ou plus récent, et git. Vérifier :
+
+```bash
+python --version
+```
+
+Si la commande ouvre le Microsoft Store ou reste sans réponse, installer Python
+depuis [python.org](https://www.python.org/downloads/) en cochant
+« Add python.exe to PATH » pendant l'installation.
+
+### 2. Récupérer le code
+
+```bash
+git clone https://github.com/peterpribylina/quittance-generator.git
+```
+
+```bash
+cd quittance-generator
+```
+
+### 3. Environnement virtuel (recommandé)
+
+Isole les dépendances du reste de la machine.
+
+```bash
+python -m venv .venv
+```
+
+```bash
+.\.venv\Scripts\Activate.ps1
+```
+
+Si PowerShell refuse le script d'activation (`l'exécution de scripts est
+désactivée`), l'autoriser une fois pour l'utilisateur courant :
+
+```bash
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+L'invite affiche alors `(.venv)`. À refaire à chaque nouveau terminal ; sans
+environnement virtuel, sauter cette étape et passer à la suivante.
+
+### 4. Installer l'application et ses dépendances
+
 ```bash
 python -m pip install -e ".[dev]"
 ```
 
-Puis créer la configuration et les identifiants SMTP :
+Installe ReportLab, PyYAML, python-dotenv, ainsi que pytest et pypdf pour les
+tests. `-e` installe en mode éditable : les modifications du code sont prises en
+compte sans réinstaller.
+
+### 5. Configurer
+
+`config.yaml` est versionné : un clone du dépôt le contient déjà, avec les
+locataires réels. Il n'y a rien à copier — le remplacer par le modèle
+effacerait ces données. Pour repartir de zéro sur une autre installation :
 
 ```bash
-cp config.example.yaml config.yaml
-cp .env.example .env
+Copy-Item config.example.yaml config.yaml
 ```
 
-`config.yaml` décrit le bailleur, les biens et les locataires.
-`.env` contient les identifiants d'envoi — les deux fichiers restent locaux,
-`.env` est exclu du dépôt.
+`.env` en revanche n'est jamais versionné et doit être créé :
+
+```bash
+Copy-Item .env.example .env
+```
+
+Éditer ensuite :
+
+```bash
+notepad config.yaml
+```
+
+`config.yaml` décrit le bailleur, les biens et les locataires — c'est la seule
+source des données métier. `.env` contient les identifiants d'envoi. Les deux
+restent locaux ; `.env` est exclu du dépôt.
 
 Gmail exige un [mot de passe d'application](https://myaccount.google.com/apppasswords) ;
-le mot de passe du compte est refusé.
+le mot de passe du compte est refusé. Le générer, puis le coller dans `.env`
+après `SMTP_PASSWORD=`.
+
+### 6. Vérifier
+
+```bash
+python -m quittances locataires
+```
+
+La liste des locataires confirme que `config.yaml` est lu correctement. Puis la
+suite de tests :
+
+```bash
+python -m pytest
+```
+
+Enfin, un essai complet sur sa propre adresse avant de viser un vrai locataire :
+
+```bash
+python -m quittances quittance --locataire Peter --periode 2026-09 --loyer 1 --charges 0 --envoyer
+```
 
 ### Champs d'un locataire
 
@@ -117,6 +202,12 @@ Les modèles ne connaissent ni le PDF ni l'email, ce qui permet de tester les
 calculs et les libellés sans rien générer.
 
 ## Historique
+
+Version 2.1 : refonte de la mise en page. Le cadre et la grille hérités de
+pdfkit disparaissent au profit d'une hiérarchie typographique — le montant réglé
+et la période, les deux informations que cherche le locataire, arrivent avant le
+détail comptable. Signature agrandie, filigrane retiré (réactivable via `assets.watermark`).
+
 
 Version 2.0 : portage de Node.js/pdfkit vers Python/ReportLab. Corrections
 apportées au passage :

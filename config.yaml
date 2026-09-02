@@ -15,7 +15,9 @@ landlord:
 
 assets:
   logo: img/logo-coloc.png
-  watermark: img/logo-coloc-watermark.png
+  # Filigrane facultatif : decommenter pour le faire reapparaitre
+  # en bas a droite des documents.
+  # watermark: img/logo-coloc-watermark.png
   signature: img/signature.png
 
 properties:
@@ -112,6 +114,9 @@ tenants:
 
   # --- Lille, 84 rue Jules Valles ------------------------------------------
 
+  # Entree de test : ce n'est pas un locataire. Sert a verifier la chaine
+  # complete (PDF + envoi) sur sa propre adresse avant de viser les vrais
+  # destinataires. Incluse par --tous, exclue par --bien anzin|vals.
   Peter:
     title: M
     first_name: Peter

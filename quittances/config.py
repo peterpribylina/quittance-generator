@@ -165,20 +165,24 @@ class Tenant:
 @dataclass(frozen=True)
 class Assets:
     logo: Path
-    watermark: Path
     signature: Path
+    # Plus utilise par la mise en page actuelle ; conserve pour les
+    # configurations existantes et une eventuelle reprise.
+    watermark: Path | None = None
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any], base_dir: Path) -> "Assets":
         ctx = "assets"
+        filigrane = data.get("watermark")
         return cls(
             logo=base_dir / str(_require(data, "logo", ctx)),
-            watermark=base_dir / str(_require(data, "watermark", ctx)),
             signature=base_dir / str(_require(data, "signature", ctx)),
+            watermark=base_dir / str(filigrane) if filigrane else None,
         )
 
     def missing(self) -> list[Path]:
-        return [p for p in (self.logo, self.watermark, self.signature) if not p.is_file()]
+        candidats = [self.logo, self.signature, self.watermark]
+        return [p for p in candidats if p is not None and not p.is_file()]
 
 
 @dataclass(frozen=True)

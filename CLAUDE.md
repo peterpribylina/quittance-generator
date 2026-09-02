@@ -66,7 +66,12 @@ tronquait ces noms — ne pas réintroduire de découpage sur l'espace.
 
 ## Rendu PDF
 
-Les constantes de `pdf.py` sont exprimées **depuis le haut de la page**, héritage
+La mise en page est éditoriale : pas de cadre, hiérarchie portée par la
+typographie et le blanc, montant réglé en élément dominant. `assets.watermark` est facultatif et **volontairement absent de `config.yaml`** :
+le rendu sans filigrane a été préféré. Le code reste en place — renseigner la
+clé le fait réapparaître en bas à droite à 10 % d'opacité.
+
+Les constantes de `pdf.py` sont exprimées **depuis le haut de la page**, hérité
 de la mise en page pdfkit d'origine ; `_y()` convertit vers l'origine
 bas-gauche de ReportLab. Tout le texte passe par des `Paragraph` (retour à la
 ligne automatique et gras en ligne via `<b>`), positionnés par `_paragraph()`
@@ -87,6 +92,10 @@ autouse `environnement_propre` s'en charge.
 
 Les fixtures de `conftest.py` construisent une config de test pointant sur les
 vraies images de `img/`.
+
+Le locataire `Peter` de `config.yaml` n'est pas un locataire : c'est une entree
+de test qui envoie sur l'adresse du bailleur, utilisee pour valider la chaine
+complete avant de viser de vrais destinataires. `--tous` l'inclut.
 
 ## Pièges
 
