@@ -181,3 +181,30 @@ def test_config_absente(tmp_path: Path, capsys) -> None:
 def test_commande_obligatoire() -> None:
     with pytest.raises(SystemExit):
         cli.main([])
+
+
+def test_envoi_refuse_sans_email(
+    config_file: Path, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """Un locataire sans email ne doit pas faire echouer silencieusement l'envoi."""
+    import yaml
+
+    brut = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+    del brut["tenants"]["Jin"]["email"]
+    config_file.write_text(
+        yaml.safe_dump(brut, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
+    monkeypatch.setenv("SMTP_USER", "bailleur@example.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "secret")
+    monkeypatch.setattr(
+        cli, "send", lambda *a, **k: pytest.fail("aucun envoi ne doit avoir lieu")
+    )
+
+    code = run(config_file, "quittance", "--locataire", "Jin", "--periode", "2025-09",
+               "--dossier", str(tmp_path), "--envoyer")
+
+    assert code == 1
+    erreur = capsys.readouterr().err
+    assert "Aucune adresse email" in erreur
+    assert "tenants.Jin" in erreur
+    assert next(tmp_path.rglob("*.pdf")).is_file()  # le PDF est bien produit

@@ -103,6 +103,11 @@ def _deliver(
     bodies: tuple[str, str],
     attachment: Path,
 ) -> None:
+    if not tenant.emails:
+        raise MailError(
+            f"Aucune adresse email pour {tenant.full_name} : renseignez « email » "
+            f"dans config.yaml (tenants.{tenant.key})."
+        )
     settings = MailSettings.from_env(from_name=config.landlord.legal_name)
     texte, html = bodies
     message = build_message(

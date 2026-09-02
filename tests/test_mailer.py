@@ -20,6 +20,12 @@ def settings() -> MailSettings:
 
 @pytest.fixture(autouse=True)
 def environnement_propre(monkeypatch) -> None:
+    """Isole les tests du vrai .env du depot.
+
+    `load_dotenv()` remonte depuis le fichier appelant (quittances/mailer.py),
+    pas depuis le repertoire courant : un `chdir` ne suffit donc pas a l'eviter.
+    """
+    monkeypatch.setattr("quittances.mailer.load_dotenv", lambda *a, **k: None)
     for nom in (
         "SMTP_USER", "SMTP_PASSWORD", "SMTP_HOST", "SMTP_PORT", "SMTP_FROM_NAME",
         "GMAIL_USER", "GMAIL_APP_PASSWORD",
@@ -42,8 +48,7 @@ def test_variables_gmail_acceptees(monkeypatch) -> None:
     assert MailSettings.from_env(from_name="Bailleur").user == "a@gmail.com"
 
 
-def test_identifiants_manquants(monkeypatch, tmp_path) -> None:
-    monkeypatch.chdir(tmp_path)  # evite de charger un .env du depot
+def test_identifiants_manquants() -> None:
     with pytest.raises(MailError) as exc:
         MailSettings.from_env(from_name="Bailleur")
     assert "SMTP_USER" in str(exc.value)

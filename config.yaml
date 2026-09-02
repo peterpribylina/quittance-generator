@@ -31,27 +31,18 @@ properties:
 
 # rent / charges : facultatifs. S'ils sont renseignes, --loyer et --charges
 # deviennent inutiles en ligne de commande.
+# title / email : facultatifs. Sans title, la civilite est omise des documents ;
+# sans email, la generation fonctionne mais --envoyer refuse le locataire.
 # birth_date / birth_place : requis seulement pour l'attestation d'hebergement.
 tenants:
-  Ismail:
-    title: M
-    first_name: Ismail
-    last_name: Boufeloussen
-    email: ismailbouf60@gmail.com
-    property: vals
 
-  Jin:
-    title: M
-    first_name: Jingyi
-    last_name: Luo
-    email: ljy1060024162@gmail.com
-    property: anzin
+  # --- Anzin, 3 impasse Lecomte -------------------------------------------
 
-  Zakath:
-    title: M
-    first_name: Zakath
-    last_name: Laville
-    email: zakathlaville@gmail.com
+  Alice:
+    title: Mlle
+    first_name: Alice
+    last_name: Rolland
+    email: arolland904@gmail.com
     property: anzin
 
   Matilde:
@@ -61,39 +52,41 @@ tenants:
     email: matildearanibarcampero@gmail.com
     property: anzin
 
+  Elsa:
+    first_name: Elsa
+    last_name: Morón
+    property: anzin
+    title: Mlle
+    email: elsa.moron@bluewin.ch
+
+  Baptiste:
+    first_name: Baptiste
+    last_name: Dos Santos
+    property: anzin
+    title: M
+    email: dossantos.baptiste01@gmail.com
+
+  Aakash:
+    first_name: Aakash
+    last_name: Rameshkumar
+    property: anzin
+    title: M
+    email: aakashkumarr@gmail.com
+
+  # --- Valenciennes, 14 avenue de Conde ------------------------------------
+
+  MathiasV:
+    title: M
+    first_name: Mathias
+    last_name: Vanzieleghem
+    email: math.vzhm@gmail.com
+    property: vals
+
   Madina:
     title: Mlle
     first_name: Madina
     last_name: Tazhbagambetova
     email: madinaqays@gmail.com
-    property: vals
-
-  Alice:
-    title: Mlle
-    first_name: Alice
-    last_name: Rolland
-    email: arolland904@gmail.com
-    property: anzin
-
-  Xin:
-    title: Mlle
-    first_name: XinXuan
-    last_name: Li
-    email: yxtk1797@163.com
-    property: vals
-
-  Audrey:
-    title: M
-    first_name: Audrey
-    last_name: Gogoua
-    email: klebienmaxime@yahoo.fr, audreygogoua05@icloud.com
-    property: vals
-
-  Mathias:
-    title: M
-    first_name: Mathias
-    last_name: Vanzieleghem
-    email: math.vzhm@gmail.com
     property: vals
 
   Henri:
@@ -102,6 +95,22 @@ tenants:
     last_name: Fournet
     email: fournethyou2008@gmail.com
     property: vals
+
+  Eliot:
+    first_name: Eliot
+    last_name: Fuks
+    property: vals
+    title: M
+    email: ef4100@yahoo.it
+
+  MathiasP:
+    first_name: Mathias
+    last_name: Pacheco
+    property: vals
+    title: M
+    email: pmathias@gmail.com
+
+  # --- Lille, 84 rue Jules Valles ------------------------------------------
 
   Peter:
     title: M

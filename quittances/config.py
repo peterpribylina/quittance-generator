@@ -97,11 +97,14 @@ class Property:
 @dataclass(frozen=True)
 class Tenant:
     key: str
-    title: str
     first_name: str
     last_name: str
-    emails: tuple[str, ...]
     property: Property
+    # Facultative : un titre absent vaut mieux qu'un titre devine a partir du
+    # prenom. Il est alors simplement omis des documents.
+    title: str | None = None
+    # Facultatifs : la generation des PDF n'en a pas besoin, seul l'envoi si.
+    emails: tuple[str, ...] = ()
     rent: Decimal | None = None
     charges: Decimal | None = None
     birth_date: str | None = None
@@ -113,8 +116,12 @@ class Tenant:
 
     @property
     def display_name(self) -> str:
-        """« M. LUO Jingyi ». Le nom complet est conserve, y compris compose."""
-        return f"{self.title}. {self.last_name.upper()} {self.first_name}"
+        """« M. LUO Jingyi », ou « LUO Jingyi » sans civilite configuree.
+
+        Le nom complet est conserve, y compris compose.
+        """
+        nom = f"{self.last_name.upper()} {self.first_name}"
+        return f"{self.title}. {nom}" if self.title else nom
 
     @property
     def slug(self) -> str:
@@ -136,13 +143,14 @@ class Tenant:
             raise ConfigError(
                 f"{ctx} : bien « {property_key} » inconnu. Biens declares : {connus}."
             )
-        emails = _require(data, "email", ctx)
+        emails = data.get("email") or ()
         if isinstance(emails, str):
             # L'ancienne config tolerait "a@x.fr, b@y.fr" dans un seul champ.
             emails = [part.strip() for part in emails.split(",") if part.strip()]
+        titre = data.get("title") or None
         return cls(
             key=key,
-            title=str(_require(data, "title", ctx)),
+            title=str(titre) if titre else None,
             first_name=str(_require(data, "first_name", ctx)),
             last_name=str(_require(data, "last_name", ctx)),
             emails=tuple(str(email) for email in emails),

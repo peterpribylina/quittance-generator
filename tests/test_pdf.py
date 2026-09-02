@@ -139,3 +139,36 @@ def test_caracteres_speciaux_echappes(
     )
     texte = extract_text(render_quittance(quittance, config_modifiee, tmp_path / "q.pdf"))
     assert "Dupont & Fils" in texte
+
+
+def test_quittance_sans_civilite(config: Config, raw_config: dict, tmp_path: Path) -> None:
+    del raw_config["tenants"]["Jin"]["title"]
+    config_sans_titre = Config.from_dict(
+        raw_config, base_dir=Path(__file__).resolve().parent.parent
+    )
+    quittance = Quittance(
+        tenant=config_sans_titre.tenant("Jin"),
+        period=date(2025, 9, 1),
+        payment_date=date(2025, 9, 1),
+        rent=Decimal("390"),
+        charges=Decimal("0"),
+        issued_on=date(2025, 9, 2),
+    )
+    texte = extract_text(render_quittance(quittance, config_sans_titre, tmp_path / "q.pdf"))
+    assert "Reçu de : LUO Jingyi" in texte
+
+
+def test_attestation_sans_civilite_n_accorde_pas(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    del raw_config["tenants"]["Matilde"]["title"]
+    config = Config.from_dict(
+        raw_config, base_dir=Path(__file__).resolve().parent.parent
+    )
+    attestation = Attestation(
+        tenant=config.tenant("Matilde"),
+        hosted_since=date(2025, 9, 1),
+        issued_on=date(2025, 9, 2),
+    )
+    texte = extract_text(render_attestation(attestation, config, tmp_path / "a.pdf"))
+    assert "né(e) le 3 mars 2001" in texte

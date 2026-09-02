@@ -69,9 +69,12 @@ def test_bien_inconnu(raw_config: dict, tmp_path: Path) -> None:
         Config.from_dict(raw_config, base_dir=tmp_path)
 
 
-def test_champ_obligatoire_manquant(raw_config: dict, tmp_path: Path) -> None:
-    del raw_config["tenants"]["Jin"]["email"]
-    with pytest.raises(ConfigError, match="email"):
+@pytest.mark.parametrize("champ", ["first_name", "last_name", "property"])
+def test_champ_obligatoire_manquant(
+    raw_config: dict, tmp_path: Path, champ: str
+) -> None:
+    del raw_config["tenants"]["Jin"][champ]
+    with pytest.raises(ConfigError, match=champ):
         Config.from_dict(raw_config, base_dir=tmp_path)
 
 
@@ -89,3 +92,18 @@ def test_images_absentes_signalees(raw_config: dict, tmp_path: Path) -> None:
     raw_config["assets"]["logo"] = "img/inexistant.png"
     config = Config.from_dict(raw_config, base_dir=tmp_path)
     assert len(config.assets.missing()) == 3
+
+
+def test_civilite_facultative(raw_config: dict, tmp_path: Path) -> None:
+    """Sans titre configure, la civilite est omise plutot que devinee."""
+    del raw_config["tenants"]["Jin"]["title"]
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    tenant = config.tenant("Jin")
+    assert tenant.title is None
+    assert tenant.display_name == "LUO Jingyi"
+
+
+def test_email_facultatif(raw_config: dict, tmp_path: Path) -> None:
+    del raw_config["tenants"]["Jin"]["email"]
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    assert config.tenant("Jin").emails == ()

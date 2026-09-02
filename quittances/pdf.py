@@ -252,7 +252,13 @@ def render_attestation(attestation: Attestation, config: Config, path: Path) -> 
             f"à {escape(str(landlord.birth_place))}"
         )
 
-    accord = "née" if tenant.title.lower().startswith(("mlle", "mme")) else "né"
+    # Sans civilite configuree, on n'accorde pas au hasard.
+    if not tenant.title:
+        accord = "né(e)"
+    elif tenant.title.lower().startswith(("mlle", "mme")):
+        accord = "née"
+    else:
+        accord = "né"
 
     corps = (
         f"Je soussigné {_bold(landlord.legal_name)}{naissance_bailleur}, "
