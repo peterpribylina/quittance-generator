@@ -42,6 +42,12 @@ le défaut de l'ancien `helper.js`, remplacé lors du portage Node → Python.
 
 ## Invariants à ne pas casser
 
+`--locataire`, `--maison` et `--tous` sont trois sélecteurs **mutuellement
+exclusifs**, et `select_tenants` refuse toute combinaison. `--maison` ne
+paramètre pas le document : l'adresse et le dossier de sortie viennent toujours
+de la fiche du locataire. Avant ce garde-fou, `--locataire X --maison Y`
+ignorait X en silence et générait pour toute la maison Y.
+
 `quittance` est la sous-commande par défaut, injectée par
 `inject_default_command` avant argparse. Elle doit sauter les options globales
 (`--config` et sa valeur, `--config=x`) sans prendre la valeur d'une option de

@@ -67,6 +67,23 @@ def select_tenants(config: Config, args: argparse.Namespace) -> list[Tenant]:
     `--maison` sans `--locataire` vaut « tous les locataires de cette maison » : il n'y
     a pas d'autre lecture raisonnable, autant ne pas exiger `--tous` en plus.
     """
+    actifs = [
+        nom
+        for nom, actif in (
+            ("--locataire", bool(args.locataire)),
+            ("--maison", bool(args.maison)),
+            ("--tous", bool(args.tous)),
+        )
+        if actif
+    ]
+    if len(actifs) > 1:
+        # Sans ce garde-fou, --maison l'emportait en silence et le lot partait
+        # a toute la maison au lieu du locataire nomme.
+        raise CliError(
+            f"Selecteurs incompatibles : {' et '.join(actifs)}. Choisissez-en un "
+            "seul ; la maison d'un locataire nomme est deduite de sa fiche."
+        )
+
     if args.maison or args.tous:
         tenants = list(config.tenants.values())
         if args.maison:

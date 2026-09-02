@@ -164,6 +164,7 @@ Sans installation, tout fonctionne aussi via `python -m quittances`.
 | `--locataire CLE` | locataire ciblé, répétable |
 | `--tous` | tous les locataires, toutes maisons confondues |
 | `--maison CLE` | tous les locataires de cette maison |
+
 | `--periode AAAA-MM` | mois de la quittance, défaut : mois courant |
 | `--date-paiement DATE` | défaut : 1er jour de la période |
 | `--loyer` / `--charges` | remplacent les montants de `config.yaml` |
@@ -173,6 +174,10 @@ Sans installation, tout fonctionne aussi via `python -m quittances`.
 | `--forcer` | régénère un PDF déjà présent |
 | `--envoyer` | envoie l'email (sinon, génération seule) |
 | `--config CHEMIN` | autre `config.yaml` |
+
+`--locataire`, `--maison` et `--tous` s'excluent mutuellement. La maison d'un
+locataire nommé est déduite de sa fiche : deux locataires de maisons
+différentes peuvent donc être traités dans la même commande.
 
 Les dates s'écrivent `AAAA-MM-JJ` ou `JJ/MM/AAAA`.
 

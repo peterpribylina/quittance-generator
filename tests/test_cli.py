@@ -128,7 +128,7 @@ def test_echec_d_envoi_renvoie_un_code_erreur(
 def test_generation_pour_tous_les_locataires_d_un_bien(
     config_file: Path, tmp_path: Path
 ) -> None:
-    code = run(config_file, "quittance", "--tous", "--maison", "anzin", "--periode",
+    code = run(config_file, "quittance", "--maison", "anzin", "--periode",
                "2025-09", "--loyer", "400", "--dossier", str(tmp_path))
     assert code == 0
     assert len(list(tmp_path.rglob("*.pdf"))) == 2
@@ -281,3 +281,42 @@ def test_periode_par_defaut_mois_courant(
     attendu = date.today().strftime("%Y-%m")
     assert list(tmp_path.rglob(f"*{attendu}.pdf"))
     assert date.today().strftime("%m/%Y") in capsys.readouterr().out
+
+
+class TestSelecteursExclusifs:
+    """Combiner les selecteurs faisait silencieusement gagner --maison."""
+
+    def test_locataire_et_maison_refuses(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        code = run(config_file, "--locataire", "Jin", "--maison", "vals",
+                   "--dossier", str(tmp_path))
+        assert code == 1
+        erreur = capsys.readouterr().err
+        assert "--locataire" in erreur and "--maison" in erreur
+        assert not list(tmp_path.rglob("*.pdf"))  # rien n'est genere
+
+    def test_locataire_et_tous_refuses(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        code = run(config_file, "--locataire", "Jin", "--tous",
+                   "--dossier", str(tmp_path))
+        assert code == 1
+        assert "incompatibles" in capsys.readouterr().err
+
+    def test_maison_seule_reste_valide(
+        self, config_file: Path, tmp_path: Path
+    ) -> None:
+        assert run(config_file, "--maison", "anzin", "--periode", "2025-09",
+                   "--loyer", "400", "--dossier", str(tmp_path)) == 0
+        assert len(list(tmp_path.rglob("*.pdf"))) == 2
+
+    def test_maison_deduite_du_locataire(
+        self, config_file: Path, tmp_path: Path
+    ) -> None:
+        """Deux locataires de maisons differentes, en une commande, sans --maison."""
+        code = run(config_file, "--locataire", "Jin", "--locataire", "Xin",
+                   "--periode", "2025-09", "--loyer", "400", "--dossier", str(tmp_path))
+        assert code == 0
+        dossiers = {p.parent.parent.name for p in tmp_path.rglob("*.pdf")}
+        assert dossiers == {"Jingyi_Luo", "XinXuan_Li"}
