@@ -143,6 +143,23 @@ Toutes les maisons d'un coup :
 quittances --tous --envoyer
 ```
 
+Voir qui est à jour, mois par mois :
+
+```bash
+quittances suivi --depuis 2026-09
+```
+
+```
+LOCATAIRE                 MAISON   09   MANQUE
+Alice Rolland             anzin    ✓       -
+Matilde Aranibar Campero  anzin    ·       1  410,00 €
+```
+
+`suivi` lit l'existence des quittances sur le disque : une quittance n'étant
+émise qu'une fois le loyer encaissé, sa présence vaut paiement. L'application ne
+consulte aucun compte bancaire. Ajouter `--manquants` pour ne lister que les
+retards, `--jusqu-a` pour borner, `--maison` ou `--locataire` pour restreindre.
+
 Lister les locataires configurés :
 
 ```bash

@@ -19,6 +19,25 @@ class DocumentError(Exception):
     """Donnees insuffisantes ou incoherentes pour produire un document."""
 
 
+def quittance_filename(tenant: Tenant, period: date) -> str:
+    """Nom du fichier attendu pour un locataire et un mois donnes."""
+    return (
+        f"Quittance_de_loyer_{tenant.first_name}_"
+        f"{tenant.last_name.upper().replace(' ', '_')}_"
+        f"{period.strftime('%Y-%m')}.pdf"
+    )
+
+
+def quittance_path(tenant: Tenant, period: date, root: Path | None = None) -> Path:
+    """Chemin attendu, calculable sans construire de quittance complete.
+
+    Le suivi des paiements s'en sert pour tester l'existence d'un document sans
+    connaitre les montants.
+    """
+    base = Path(root) if root is not None else tenant.property.folder
+    return base / tenant.slug / "Quittances" / quittance_filename(tenant, period)
+
+
 @dataclass(frozen=True)
 class Quittance:
     tenant: Tenant
@@ -69,15 +88,11 @@ class Quittance:
 
     @property
     def filename(self) -> str:
-        return (
-            f"Quittance_de_loyer_{self.tenant.first_name}_"
-            f"{self.tenant.last_name.upper().replace(' ', '_')}_{self.period_key}.pdf"
-        )
+        return quittance_filename(self.tenant, self.period)
 
     def output_path(self, root: Path | None = None) -> Path:
         """<dossier du bien>/<Prenom_Nom>/Quittances/<fichier>."""
-        base = Path(root) if root is not None else self.tenant.property.folder
-        return base / self.tenant.slug / "Quittances" / self.filename
+        return quittance_path(self.tenant, self.period, root)
 
     @property
     def email_subject(self) -> str:

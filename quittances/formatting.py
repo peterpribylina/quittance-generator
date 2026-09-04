@@ -44,6 +44,18 @@ def month_year(value: date) -> str:
     return f"{month_name(value.month)} {value.year}"
 
 
+def iter_months(debut: date, fin: date) -> list[date]:
+    """Premiers jours de chaque mois de `debut` a `fin` inclus."""
+    mois = []
+    annee, numero = debut.year, debut.month
+    while (annee, numero) <= (fin.year, fin.month):
+        mois.append(date(annee, numero, 1))
+        numero += 1
+        if numero == 13:
+            annee, numero = annee + 1, 1
+    return mois
+
+
 def format_date(value: date) -> str:
     """« 01/09/2025 »."""
     return value.strftime("%d/%m/%Y")

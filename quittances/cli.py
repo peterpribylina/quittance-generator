@@ -21,8 +21,8 @@ from pathlib import Path
 from typing import Sequence
 
 from .config import Config, ConfigError, Tenant
-from .documents import Attestation, DocumentError, Quittance
-from .formatting import format_amount, parse_amount
+from .documents import Attestation, DocumentError, Quittance, quittance_path
+from .formatting import format_amount, iter_months, month_year, parse_amount
 from .mailer import MailError, MailSettings, build_message, send
 from .pdf import render_attestation, render_quittance
 
@@ -157,6 +157,90 @@ def cmd_tenants(config: Config, args: argparse.Namespace) -> int:
             f"{cle.ljust(largeur)}  {tenant.full_name.ljust(28)}  "
             f"{tenant.property.key.ljust(8)}  {loyer}{charges}"
         )
+    return 0
+
+
+def markers() -> tuple[str, str]:
+    """(emise, manquante), en ASCII si la sortie ne sait pas encoder mieux.
+
+    Le terminal Windows accepte l'Unicode, mais une redirection retombe en
+    cp1252 : sans ce repli, `quittances suivi > fichier.txt` planterait.
+    """
+    encodage = getattr(sys.stdout, "encoding", None) or "ascii"
+    try:
+        "✓·".encode(encodage)
+    except (UnicodeEncodeError, LookupError):
+        return "X", "."
+    return "✓", "·"
+
+
+def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
+    """Tableau locataires x mois, coche la ou une quittance existe.
+
+    L'application ne consulte aucun compte bancaire : le seul signal disponible
+    est l'existence du PDF, emis lorsque le loyer est arrive. C'est donc un
+    suivi des quittances emises, pas un releve de paiements.
+    """
+    debut = parse_period(args.depuis) if args.depuis else date.today().replace(month=1, day=1)
+    fin = parse_period(args.jusqu_a) if args.jusqu_a else date.today().replace(day=1)
+    if debut > fin:
+        raise CliError(
+            f"Periode vide : {debut:%m/%Y} est posterieur a {fin:%m/%Y}."
+        )
+    mois = iter_months(debut, fin)
+    racine = Path(args.dossier) if args.dossier else None
+    emise, manquante = markers()
+
+    # Un etat des lieux porte par defaut sur tout le monde.
+    tenants = (
+        select_tenants(config, args)
+        if (args.locataire or args.maison or args.tous)
+        else list(config.tenants.values())
+    )
+
+    lignes = []
+    for tenant in tenants:
+        presence = [
+            quittance_path(tenant, m, racine).is_file() for m in mois
+        ]
+        manquants = [m for m, presente in zip(mois, presence) if not presente]
+        du = None
+        if manquants and tenant.rent is not None:
+            du = (tenant.rent + (tenant.charges or Decimal("0"))) * len(manquants)
+        lignes.append((tenant, presence, manquants, du))
+
+    if args.manquants:
+        lignes = [ligne for ligne in lignes if ligne[2]]
+
+    titre = f"Quittances emises de {month_year(debut)} a {month_year(fin)}"
+    print(titre)
+    print("Une quittance n'est emise qu'une fois le loyer encaisse.\n")
+
+    if not lignes:
+        print("Aucun locataire a afficher.")
+        return 0
+
+    largeur_nom = max(len(t.full_name) for t, _, _, _ in lignes)
+    entete_mois = " ".join(f"{m:%m}" for m in mois)
+    print(f"{'LOCATAIRE'.ljust(largeur_nom)}  {'MAISON'.ljust(7)}  {entete_mois}   MANQUE")
+
+    for tenant, presence, manquants, du in lignes:
+        cases = " ".join(f"{emise if p else manquante} " for p in presence)
+        reste = f"{len(manquants)}" if manquants else "-"
+        montant = f"  {format_amount(du)}" if du is not None else ""
+        print(
+            f"{tenant.full_name.ljust(largeur_nom)}  "
+            f"{tenant.property.key.ljust(7)}  {cases}  {reste.rjust(5)}{montant}"
+        )
+
+    total_manquants = sum(len(ligne[2]) for ligne in lignes)
+    total_du = sum((ligne[3] for ligne in lignes if ligne[3] is not None), Decimal("0"))
+    print(
+        f"\n{len(lignes)} locataires, {total_manquants} quittances manquantes"
+        + (f", {format_amount(total_du)} non quittancés" if total_du else "")
+    )
+    if any(ligne[3] is None and ligne[2] for ligne in lignes):
+        print("Montant indisponible pour les locataires sans « rent » configure.")
     return 0
 
 
@@ -300,6 +384,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_quittance.add_argument("--charges", type=_amount, metavar="MONTANT")
     p_quittance.set_defaults(handler=cmd_quittance)
 
+    p_suivi = sous.add_parser(
+        "suivi", help="qui a une quittance emise, mois par mois")
+    p_suivi.add_argument("--locataire", action="append", metavar="CLE")
+    p_suivi.add_argument("--tous", action="store_true")
+    p_suivi.add_argument("--maison", metavar="CLE")
+    p_suivi.add_argument("--depuis", metavar="AAAA-MM",
+                         help="defaut : janvier de l'annee en cours")
+    p_suivi.add_argument("--jusqu-a", metavar="AAAA-MM", dest="jusqu_a",
+                         help="defaut : mois courant")
+    p_suivi.add_argument("--manquants", action="store_true",
+                         help="n'affiche que les locataires en retard")
+    p_suivi.add_argument("--dossier", metavar="CHEMIN")
+    p_suivi.set_defaults(handler=cmd_suivi)
+
     p_attestation = sous.add_parser("attestation", help="genere une attestation")
     _add_common_arguments(p_attestation)
     p_attestation.add_argument("--depuis", required=True, metavar="DATE",
@@ -309,7 +407,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-COMMANDES = ("quittance", "attestation", "locataires")
+COMMANDES = ("quittance", "attestation", "locataires", "suivi")
 
 
 def inject_default_command(argv: Sequence[str]) -> list[str]:

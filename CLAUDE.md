@@ -77,6 +77,19 @@ civilité est omise du document (« Reçu de : MORÓN Elsa ») et l'attestation 
 (« Aranibar Campero », « Dos Santos »). L'ancien `fullName.split(" ")[1]`
 tronquait ces noms — ne pas réintroduire de découpage sur l'espace.
 
+## Suivi des paiements
+
+`quittances suivi` n'a **aucune source de paiement** : il teste l'existence du
+PDF attendu (`documents.quittance_path`) pour chaque locataire et chaque mois.
+Le raccourci « quittance présente = loyer encaissé » tient parce que le bailleur
+n'émet une quittance qu'une fois payé — le libellé de la commande le dit, ne pas
+le présenter comme un relevé bancaire. Les relevés de `src/data_2025.py`
+s'arrêtent fin 2025 et ne sont pas branchés.
+
+Les marqueurs `✓`/`·` passent par `cli.markers()`, qui retombe sur `X`/`.`
+quand `sys.stdout` ne sait pas les encoder : une redirection Windows repasse en
+cp1252 et ferait planter la commande.
+
 ## Rendu PDF
 
 La mise en page est éditoriale : pas de cadre, hiérarchie portée par la

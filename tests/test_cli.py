@@ -320,3 +320,85 @@ class TestSelecteursExclusifs:
         assert code == 0
         dossiers = {p.parent.parent.name for p in tmp_path.rglob("*.pdf")}
         assert dossiers == {"Jingyi_Luo", "XinXuan_Li"}
+
+
+class TestSuivi:
+    """Le suivi lit l'existence des PDF : c'est le seul signal disponible."""
+
+    def _genere(self, config_file: Path, racine: Path, locataire: str,
+                periode: str) -> None:
+        assert run(config_file, "--locataire", locataire, "--periode", periode,
+                   "--loyer", "400", "--dossier", str(racine)) == 0
+
+    def test_colonnes_et_marqueurs(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        self._genere(config_file, tmp_path, "Jin", "2025-02")
+        capsys.readouterr()
+
+        assert run(config_file, "suivi", "--depuis", "2025-01", "--jusqu-a",
+                   "2025-03", "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        assert "01 02 03" in sortie
+        ligne = next(l for l in sortie.splitlines() if "Jingyi Luo" in l)
+        marques = [c for c in ligne if c in "✓·X."]
+        assert marques == ["·", "✓", "·"] or marques == [".", "X", "."]
+
+    def test_sans_selecteur_couvre_tout_le_monde(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        assert run(config_file, "suivi", "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        for nom in ("Jingyi Luo", "Matilde Aranibar Campero", "XinXuan Li"):
+            assert nom in sortie
+
+    def test_filtre_par_maison(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        assert run(config_file, "suivi", "--maison", "vals",
+                   "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        assert "XinXuan Li" in sortie
+        assert "Jingyi Luo" not in sortie
+
+    def test_manquants_masque_les_locataires_a_jour(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        self._genere(config_file, tmp_path, "Jin", "2025-01")
+        capsys.readouterr()
+
+        assert run(config_file, "suivi", "--depuis", "2025-01", "--jusqu-a",
+                   "2025-01", "--manquants", "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        assert "Jingyi Luo" not in sortie
+        assert "XinXuan Li" in sortie
+
+    def test_montant_du_cumule_les_mois(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Jin est a 390 + 60,50 : trois mois manquants font 1 351,50."""
+        assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
+                   "2025-01", "--jusqu-a", "2025-03", "--dossier", str(tmp_path)) == 0
+        assert "1\u00a0351,50" in capsys.readouterr().out
+
+    def test_montant_absent_sans_loyer_configure(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        assert run(config_file, "suivi", "--locataire", "Xin",
+                   "--dossier", str(tmp_path)) == 0
+        assert "rent" in capsys.readouterr().out
+
+    def test_periode_inversee_refusee(
+        self, config_file: Path, capsys
+    ) -> None:
+        code = run(config_file, "suivi", "--depuis", "2026-09", "--jusqu-a", "2026-01")
+        assert code == 1
+        assert "Periode vide" in capsys.readouterr().err
+
+    def test_marqueurs_ascii_si_encodage_pauvre(self, monkeypatch) -> None:
+        """Une redirection en cp1252 ne doit pas faire planter la commande."""
+        class SortiePauvre:
+            encoding = "cp1252"
+
+        monkeypatch.setattr(cli.sys, "stdout", SortiePauvre())
+        assert cli.markers() == ("X", ".")
