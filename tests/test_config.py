@@ -107,3 +107,17 @@ def test_email_facultatif(raw_config: dict, tmp_path: Path) -> None:
     del raw_config["tenants"]["Jin"]["email"]
     config = Config.from_dict(raw_config, base_dir=tmp_path)
     assert config.tenant("Jin").emails == ()
+
+
+def test_nom_abrege(config: Config) -> None:
+    assert config.tenant("Jin").short_name == "Jingyi L."
+
+
+def test_nom_abrege_avec_nom_compose(config: Config) -> None:
+    """Un nom compose est abrege sur sa premiere lettre, pas sur chaque mot."""
+    assert config.tenant("Matilde").short_name == "Matilde A."
+
+
+def test_nom_complet_intact(config: Config) -> None:
+    """L'abreviation est un choix d'affichage : les documents gardent le nom."""
+    assert config.tenant("Matilde").full_name == "Matilde Aranibar Campero"

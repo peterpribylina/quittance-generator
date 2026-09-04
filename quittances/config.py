@@ -124,6 +124,14 @@ class Tenant:
         return f"{self.title}. {nom}" if self.title else nom
 
     @property
+    def short_name(self) -> str:
+        """« Jingyi L. » : forme abregee pour les tableaux.
+
+        Reserve a l'affichage. Les documents portent toujours le nom complet.
+        """
+        return f"{self.first_name} {self.last_name[0].upper()}."
+
+    @property
     def slug(self) -> str:
         """Nom de dossier : « Jingyi_Luo »."""
         return self.full_name.replace(" ", "_")

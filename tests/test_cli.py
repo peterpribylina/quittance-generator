@@ -340,8 +340,11 @@ class TestSuivi:
                    "2025-03", "--dossier", str(tmp_path)) == 0
         sortie = capsys.readouterr().out
         assert "01 02 03" in sortie
-        ligne = next(l for l in sortie.splitlines() if "Jingyi Luo" in l)
-        marques = [c for c in ligne if c in "✓·X."]
+        ligne = next(l for l in sortie.splitlines() if "Jingyi L." in l)
+        # Le nom abrege contient un point : ne lire les marqueurs qu'apres la
+        # colonne maison.
+        _, _, cellules = ligne.partition("anzin")
+        marques = [c for c in cellules if c in "✓·X."]
         assert marques == ["·", "✓", "·"] or marques == [".", "X", "."]
 
     def test_sans_selecteur_couvre_tout_le_monde(
@@ -349,7 +352,7 @@ class TestSuivi:
     ) -> None:
         assert run(config_file, "suivi", "--dossier", str(tmp_path)) == 0
         sortie = capsys.readouterr().out
-        for nom in ("Jingyi Luo", "Matilde Aranibar Campero", "XinXuan Li"):
+        for nom in ("Jingyi L.", "Matilde A.", "XinXuan L."):
             assert nom in sortie
 
     def test_filtre_par_maison(
@@ -358,8 +361,8 @@ class TestSuivi:
         assert run(config_file, "suivi", "--maison", "vals",
                    "--dossier", str(tmp_path)) == 0
         sortie = capsys.readouterr().out
-        assert "XinXuan Li" in sortie
-        assert "Jingyi Luo" not in sortie
+        assert "XinXuan L." in sortie
+        assert "Jingyi L." not in sortie
 
     def test_manquants_masque_les_locataires_a_jour(
         self, config_file: Path, tmp_path: Path, capsys
@@ -370,8 +373,8 @@ class TestSuivi:
         assert run(config_file, "suivi", "--depuis", "2025-01", "--jusqu-a",
                    "2025-01", "--manquants", "--dossier", str(tmp_path)) == 0
         sortie = capsys.readouterr().out
-        assert "Jingyi Luo" not in sortie
-        assert "XinXuan Li" in sortie
+        assert "Jingyi L." not in sortie
+        assert "XinXuan L." in sortie
 
     def test_montant_du_cumule_les_mois(
         self, config_file: Path, tmp_path: Path, capsys

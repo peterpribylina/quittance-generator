@@ -154,9 +154,9 @@ quittances suivi --depuis 2026-09
 ```
 
 ```
-LOCATAIRE                 MAISON   09   MANQUE
-Alice Rolland             anzin    ✓       -
-Elsa Morón                anzin    ·       1  420,00 €
+LOCATAIRE    MAISON   09   MANQUE
+Alice R.     anzin    ✓       -
+Elsa M.      anzin    ·       1  420,00 €
 
 Depuis septembre 2026 - 10 locataires, 10 termes
   Attendu     4 160,00 €

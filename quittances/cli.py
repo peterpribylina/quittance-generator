@@ -224,7 +224,7 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
         print("Aucun locataire a afficher.")
         return 0
 
-    largeur_nom = max(len(ligne[0].full_name) for ligne in lignes)
+    largeur_nom = max(len(ligne[0].short_name) for ligne in lignes)
     entete_mois = " ".join(f"{m:%m}" for m in mois)
     print(f"{'LOCATAIRE'.ljust(largeur_nom)}  {'MAISON'.ljust(7)}  {entete_mois}   MANQUE")
 
@@ -233,7 +233,7 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
         reste = f"{len(manquants)}" if manquants else "-"
         montant = f"  {format_amount(du)}" if du is not None else ""
         print(
-            f"{tenant.full_name.ljust(largeur_nom)}  "
+            f"{tenant.short_name.ljust(largeur_nom)}  "
             f"{tenant.property.key.ljust(7)}  {cases}  {reste.rjust(5)}{montant}"
         )
 
