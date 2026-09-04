@@ -25,6 +25,7 @@ from reportlab.platypus import Paragraph
 
 from .config import Config
 from .documents import Attestation, Quittance
+from .formatting import elision
 
 PAGE_WIDTH, PAGE_HEIGHT = A4
 
@@ -224,8 +225,8 @@ def render_quittance(quittance: Quittance, config: Config, path: Path) -> Path:
         canvas,
         f"Reçu de {_bold(tenant.display_name)} la somme de "
         f"{_bold(quittance.total_label)}, pour loyer et accessoires des locaux "
-        f"situés au {_bold(tenant.address)}, en paiement du terme du mois de "
-        f"{_bold(quittance.period_label)}.",
+        f"situés au {_bold(tenant.address)}, en paiement du terme du mois "
+        f"{elision(quittance.period_label)}{_bold(quittance.period_label)}.",
         MARGE, 348.0, LARGEUR_COLONNE_1,
     )
 

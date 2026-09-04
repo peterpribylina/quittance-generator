@@ -66,6 +66,11 @@ exécution, y compris quand le PDF n'avait pas été régénéré. Un envoi grou
 (U+00A0) : les tests comparent avec la constante `NBSP`, ecrite sous forme
 d'echappement `"\u00a0"` pour qu'aucun espace ordinaire ne s'y glisse.
 
+**L'élision est obligatoire devant avril, août et octobre.** `formatting.elision`
+renvoie « de » ou « d'» et s'applique aux corps d'email comme au PDF : sans elle,
+les documents d'août affichaient « le mois de août ». Elle rend la préposition
+seule, pour qu'on puisse intercaler du balisage (« le mois d'<b>août 2026</b> »).
+
 **Les mois français sont codés en dur** dans `formatting.MOIS`.
 `locale.setlocale(LC_TIME, "fr_FR")` n'est pas fiable sous Windows.
 

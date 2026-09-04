@@ -44,6 +44,21 @@ def month_year(value: date) -> str:
     return f"{month_name(value.month)} {value.year}"
 
 
+VOYELLES = "aàâeéèêiîoôuû"
+
+
+def elision(libelle: str) -> str:
+    """« de » ou « d'» selon l'initiale du libelle qui suit.
+
+    Trois mois commencent par une voyelle : avril, aout et octobre. Sans
+    elision, les documents affichaient « le mois de aout ».
+
+    Renvoie la preposition seule, et non la chaine complete, pour que l'appelant
+    puisse intercaler du balisage : « le mois d'<b>aout 2026</b> ».
+    """
+    return "d'" if libelle[:1].lower() in VOYELLES else "de "
+
+
 def iter_months(debut: date, fin: date) -> list[date]:
     """Premiers jours de chaque mois de `debut` a `fin` inclus."""
     mois = []

@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 
 from quittances.formatting import (
+    elision,
     format_amount,
     format_date,
     month_name,
@@ -75,3 +76,27 @@ def test_month_year_ne_depend_pas_de_la_locale() -> None:
 
 def test_format_date() -> None:
     assert format_date(date(2025, 9, 1)) == "01/09/2025"
+
+
+@pytest.mark.parametrize(
+    ("libelle", "attendu"),
+    [
+        ("septembre 2026", "de "),
+        ("janvier 2026", "de "),
+        ("mars 2026", "de "),
+        ("avril 2026", "d'"),
+        ("août 2026", "d'"),
+        ("octobre 2026", "d'"),
+    ],
+)
+def test_elision(libelle: str, attendu: str) -> None:
+    """Trois mois commencent par une voyelle et exigent « d'»."""
+    assert elision(libelle) == attendu
+
+
+def test_elision_sur_tous_les_mois() -> None:
+    """Aucun autre mois ne doit basculer par erreur."""
+    avec_elision = {
+        month_name(m) for m in range(1, 13) if elision(month_name(m)) == "d'"
+    }
+    assert avec_elision == {"avril", "août", "octobre"}

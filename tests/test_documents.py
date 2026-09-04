@@ -163,3 +163,32 @@ def test_relance_sans_montant_connu(config: Config) -> None:
 def test_relance_sans_mois_refusee(config: Config) -> None:
     with pytest.raises(DocumentError, match="rien a relancer"):
         Relance(tenant=config.tenant("Jin"), months=())
+
+
+def test_relance_rappelle_l_echeance(config: Config) -> None:
+    """La clause du bail sur l'echeance figure dans les deux versions."""
+    relance = build_relance(config, [date(2026, 9, 1)])
+    texte, html = relance.email_body("Peter")
+    assert "payable d'avance, le 1er de chaque mois" in texte
+    assert "payable d'avance, le 1er de chaque mois" in html
+
+
+def test_elision_dans_la_quittance(config: Config) -> None:
+    """« pour le mois d'août », pas « de août »."""
+    quittance = build_quittance(config, period=date(2026, 8, 1))
+    texte, html = quittance.email_body("Peter")
+    assert "pour le mois d'août 2026" in texte
+    assert "pour le mois d'<b>août 2026</b>" in html
+
+
+def test_elision_dans_la_relance(config: Config) -> None:
+    relance = build_relance(config, [date(2026, 8, 1)])
+    assert relance.email_subject == "Rappel : loyer d'août 2026"
+    texte, _ = relance.email_body("Peter")
+    assert "correspondant au mois d'août 2026" in texte
+
+
+def test_elision_relance_plusieurs_mois(config: Config) -> None:
+    relance = build_relance(config, [date(2026, 8, 1), date(2026, 9, 1)])
+    texte, _ = relance.email_body("Peter")
+    assert "correspondant aux mois d'août et septembre 2026" in texte

@@ -13,11 +13,25 @@ from decimal import Decimal
 from pathlib import Path
 
 from .config import Tenant
-from .formatting import format_amount, format_date, month_name, month_year
+from .formatting import (
+    elision,
+    format_amount,
+    format_date,
+    month_name,
+    month_year,
+)
 
 
 class DocumentError(Exception):
     """Donnees insuffisantes ou incoherentes pour produire un document."""
+
+
+# Reformulation de la clause du bail : « Il est payable d'avance le 1er de
+# chaque mois au BAILLEUR ». Rappelee dans les relances pour situer l'echeance.
+ECHEANCE = (
+    "Pour rappel, le bail prévoit que le loyer est payable d'avance, "
+    "le 1er de chaque mois."
+)
 
 
 def quittance_filename(tenant: Tenant, period: date) -> str:
@@ -102,15 +116,17 @@ class Quittance:
     def email_body(self, landlord_first_name: str) -> tuple[str, str]:
         """Renvoie (texte brut, HTML)."""
         prenom = self.tenant.first_name
+        preposition = elision(self.period_label)
         texte = (
             f"Bonjour {prenom},\n\n"
-            f"ci-joint la quittance de loyer pour le mois de {self.period_label}.\n\n"
+            f"ci-joint la quittance de loyer pour le mois "
+            f"{preposition}{self.period_label}.\n\n"
             f"Bien a toi,\n{landlord_first_name}"
         )
         html = (
             f"Bonjour {prenom},<br/><br/>"
-            f"ci-joint la quittance de loyer pour le mois de "
-            f"<b>{self.period_label}</b>.<br/><br/>"
+            f"ci-joint la quittance de loyer pour le mois "
+            f"{preposition}<b>{self.period_label}</b>.<br/><br/>"
             f"Bien à toi,<br/>{landlord_first_name}"
         )
         return texte, html
@@ -158,12 +174,15 @@ class Relance:
     @property
     def email_subject(self) -> str:
         if len(self.months) == 1:
-            return f"Rappel : loyer de {month_year(self.months[0])}"
+            libelle = month_year(self.months[0])
+            return f"Rappel : loyer {elision(libelle)}{libelle}"
         return f"Rappel : {len(self.months)} loyers en attente"
 
     def email_body(self, landlord_first_name: str) -> tuple[str, str]:
         prenom = self.tenant.first_name
-        article = "aux mois de" if len(self.months) > 1 else "au mois de"
+        # L'elision porte sur le premier mois cite : « aux mois d'aout et... ».
+        pluriel = "aux mois " if len(self.months) > 1 else "au mois "
+        article = pluriel + elision(self.months_label)
         montant_txt = (
             f" Le montant total dû est de {format_amount(self.total)}."
             if self.total is not None
@@ -172,8 +191,9 @@ class Relance:
         texte = (
             f"Bonjour {prenom},\n\n"
             f"sauf erreur de ma part, je n'ai pas encore reçu le loyer "
-            f"correspondant {article} {self.months_label}."
+            f"correspondant {article}{self.months_label}."
             f"{montant_txt}\n\n"
+            f"{ECHEANCE}\n\n"
             "Si le règlement est déjà parti, merci de ne pas tenir compte de ce "
             "message. Dans le cas contraire, peux-tu me dire où en est le "
             "versement ?\n\n"
@@ -187,8 +207,9 @@ class Relance:
         html = (
             f"Bonjour {prenom},<br/><br/>"
             f"sauf erreur de ma part, je n'ai pas encore reçu le loyer "
-            f"correspondant {article} <b>{self.months_label}</b>."
+            f"correspondant {article}<b>{self.months_label}</b>."
             f"{montant_html}<br/><br/>"
+            f"{ECHEANCE}<br/><br/>"
             "Si le règlement est déjà parti, merci de ne pas tenir compte de ce "
             "message. Dans le cas contraire, peux-tu me dire où en est le "
             f"versement ?<br/><br/>"
