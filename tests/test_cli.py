@@ -406,20 +406,41 @@ class TestSuivi:
     def test_total_acquitte_et_restant(
         self, config_file: Path, tmp_path: Path, capsys
     ) -> None:
-        """Jin a 450,50 par mois : une quittance sur trois mois donne
-        450,50 acquittes et 901,00 restants."""
+        """Jin est a 450,50 par mois : une quittance sur trois mois donne
+        1 351,50 attendus, 450,50 acquittes et 901,00 restants."""
         self._genere(config_file, tmp_path, "Jin", "2025-01")
         capsys.readouterr()
 
         assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
                    "2025-01", "--jusqu-a", "2025-03", "--dossier", str(tmp_path)) == 0
-        resume = capsys.readouterr().out.strip().splitlines()[-1]
-        assert "1 quittances émises" in resume
-        assert "450,50" in resume and "acquittés" in resume
-        assert "2 manquantes" in resume
-        assert "901,00" in resume
+        sortie = capsys.readouterr().out
+        assert "Depuis janvier 2025" in sortie
+        assert "3 termes" in sortie
+        for libelle, montant in (
+            ("Attendu", "1 351,50"),
+            ("Acquitté", "450,50"),
+            ("Restant", "901,00"),
+        ):
+            ligne = next(l for l in sortie.splitlines() if l.strip().startswith(libelle))
+            assert montant in ligne, f"{libelle} : {ligne!r}"
+        assert "1 quittances émises" in sortie
+        assert "2 manquantes" in sortie
 
-    def test_resume_sans_manquants(
+    def test_cumul_grandit_avec_la_periode(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Le total attendu suit le nombre de mois ecoules depuis le depart."""
+        def attendu(jusqu_a: str) -> str:
+            run(config_file, "suivi", "--locataire", "Jin", "--depuis", "2025-01",
+                "--jusqu-a", jusqu_a, "--dossier", str(tmp_path))
+            sortie = capsys.readouterr().out
+            return next(l for l in sortie.splitlines() if l.strip().startswith("Attendu"))
+
+        assert "450,50" in attendu("2025-01")
+        assert "901,00" in attendu("2025-02")
+        assert "1 351,50" in attendu("2025-03")
+
+    def test_restant_nul_quand_tout_est_a_jour(
         self, config_file: Path, tmp_path: Path, capsys
     ) -> None:
         self._genere(config_file, tmp_path, "Jin", "2025-01")
@@ -427,6 +448,6 @@ class TestSuivi:
 
         assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
                    "2025-01", "--jusqu-a", "2025-01", "--dossier", str(tmp_path)) == 0
-        resume = capsys.readouterr().out.strip().splitlines()[-1]
-        assert "manquantes" not in resume
-        assert "acquittés" in resume
+        sortie = capsys.readouterr().out
+        restant = next(l for l in sortie.splitlines() if l.strip().startswith("Restant"))
+        assert "0,00" in restant and "0 manquantes" in restant

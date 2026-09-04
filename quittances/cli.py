@@ -242,17 +242,22 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
     total_du = sum((l[3] for l in lignes if l[3] is not None), Decimal("0"))
     total_acquitte = sum((l[4] for l in lignes if l[4] is not None), Decimal("0"))
 
-    resume = [
-        f"{len(lignes)} locataires",
-        f"{total_emises} quittances émises "
-        f"({format_amount(total_acquitte)} acquittés)",
-    ]
-    if total_manquants:
-        resume.append(
-            f"{total_manquants} manquantes "
-            f"({format_amount(total_du)} non quittancés)"
-        )
-    print("\n" + " - ".join(resume))
+    # Cumul sur toute la periode affichee : il grandit d'un terme par mois
+    # ecoule, ce qui donne le total attendu depuis le mois de depart.
+    total_attendu = total_acquitte + total_du
+    termes = total_emises + total_manquants
+
+    print(
+        f"\nDepuis {month_year(debut)} - {len(lignes)} locataires, "
+        f"{termes} termes"
+    )
+    colonnes = (
+        ("Attendu", total_attendu, ""),
+        ("Acquitté", total_acquitte, f"{total_emises} quittances émises"),
+        ("Restant", total_du, f"{total_manquants} manquantes"),
+    )
+    for libelle, montant, detail in colonnes:
+        print(f"  {libelle.ljust(9)} {format_amount(montant).rjust(12)}   {detail}".rstrip())
     if any(ligne[3] is None and ligne[2] for ligne in lignes):
         print("Montant indisponible pour les locataires sans « rent » configure.")
     return 0

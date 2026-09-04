@@ -158,8 +158,15 @@ LOCATAIRE                 MAISON   09   MANQUE
 Alice Rolland             anzin    ✓       -
 Elsa Morón                anzin    ·       1  420,00 €
 
-10 locataires - 5 quittances émises (2 070,00 € acquittés) - 5 manquantes (2 090,00 € non quittancés)
+Depuis septembre 2026 - 10 locataires, 10 termes
+  Attendu     4 160,00 €
+  Acquitté    2 070,00 €   5 quittances émises
+  Restant     2 090,00 €   5 manquantes
 ```
+
+Le cumul porte sur toute la période affichée : « Attendu » grandit d'un terme
+par locataire à chaque mois écoulé depuis `--depuis`, ce qui donne le total dû
+depuis septembre sans rien avoir à ressaisir.
 
 `suivi` lit l'existence des quittances sur le disque : une quittance n'étant
 émise qu'une fois le loyer encaissé, sa présence vaut paiement. L'application ne
