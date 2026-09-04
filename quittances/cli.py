@@ -204,10 +204,14 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
             quittance_path(tenant, m, racine).is_file() for m in mois
         ]
         manquants = [m for m, presente in zip(mois, presence) if not presente]
-        du = None
-        if manquants and tenant.rent is not None:
-            du = (tenant.rent + (tenant.charges or Decimal("0"))) * len(manquants)
-        lignes.append((tenant, presence, manquants, du))
+        terme = (
+            tenant.rent + (tenant.charges or Decimal("0"))
+            if tenant.rent is not None
+            else None
+        )
+        du = terme * len(manquants) if terme is not None and manquants else None
+        acquitte = terme * sum(presence) if terme is not None else None
+        lignes.append((tenant, presence, manquants, du, acquitte))
 
     if args.manquants:
         lignes = [ligne for ligne in lignes if ligne[2]]
@@ -220,11 +224,11 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
         print("Aucun locataire a afficher.")
         return 0
 
-    largeur_nom = max(len(t.full_name) for t, _, _, _ in lignes)
+    largeur_nom = max(len(ligne[0].full_name) for ligne in lignes)
     entete_mois = " ".join(f"{m:%m}" for m in mois)
     print(f"{'LOCATAIRE'.ljust(largeur_nom)}  {'MAISON'.ljust(7)}  {entete_mois}   MANQUE")
 
-    for tenant, presence, manquants, du in lignes:
+    for tenant, presence, manquants, du, _ in lignes:
         cases = " ".join(f"{emise if p else manquante} " for p in presence)
         reste = f"{len(manquants)}" if manquants else "-"
         montant = f"  {format_amount(du)}" if du is not None else ""
@@ -233,12 +237,22 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
             f"{tenant.property.key.ljust(7)}  {cases}  {reste.rjust(5)}{montant}"
         )
 
+    total_emises = sum(sum(ligne[1]) for ligne in lignes)
     total_manquants = sum(len(ligne[2]) for ligne in lignes)
-    total_du = sum((ligne[3] for ligne in lignes if ligne[3] is not None), Decimal("0"))
-    print(
-        f"\n{len(lignes)} locataires, {total_manquants} quittances manquantes"
-        + (f", {format_amount(total_du)} non quittancés" if total_du else "")
-    )
+    total_du = sum((l[3] for l in lignes if l[3] is not None), Decimal("0"))
+    total_acquitte = sum((l[4] for l in lignes if l[4] is not None), Decimal("0"))
+
+    resume = [
+        f"{len(lignes)} locataires",
+        f"{total_emises} quittances émises "
+        f"({format_amount(total_acquitte)} acquittés)",
+    ]
+    if total_manquants:
+        resume.append(
+            f"{total_manquants} manquantes "
+            f"({format_amount(total_du)} non quittancés)"
+        )
+    print("\n" + " - ".join(resume))
     if any(ligne[3] is None and ligne[2] for ligne in lignes):
         print("Montant indisponible pour les locataires sans « rent » configure.")
     return 0

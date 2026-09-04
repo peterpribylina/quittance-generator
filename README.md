@@ -156,7 +156,9 @@ quittances suivi --depuis 2026-09
 ```
 LOCATAIRE                 MAISON   09   MANQUE
 Alice Rolland             anzin    ✓       -
-Matilde Aranibar Campero  anzin    ·       1  410,00 €
+Elsa Morón                anzin    ·       1  420,00 €
+
+10 locataires - 5 quittances émises (2 070,00 € acquittés) - 5 manquantes (2 090,00 € non quittancés)
 ```
 
 `suivi` lit l'existence des quittances sur le disque : une quittance n'étant

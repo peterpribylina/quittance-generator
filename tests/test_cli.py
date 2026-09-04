@@ -402,3 +402,31 @@ class TestSuivi:
 
         monkeypatch.setattr(cli.sys, "stdout", SortiePauvre())
         assert cli.markers() == ("X", ".")
+
+    def test_total_acquitte_et_restant(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Jin a 450,50 par mois : une quittance sur trois mois donne
+        450,50 acquittes et 901,00 restants."""
+        self._genere(config_file, tmp_path, "Jin", "2025-01")
+        capsys.readouterr()
+
+        assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
+                   "2025-01", "--jusqu-a", "2025-03", "--dossier", str(tmp_path)) == 0
+        resume = capsys.readouterr().out.strip().splitlines()[-1]
+        assert "1 quittances émises" in resume
+        assert "450,50" in resume and "acquittés" in resume
+        assert "2 manquantes" in resume
+        assert "901,00" in resume
+
+    def test_resume_sans_manquants(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        self._genere(config_file, tmp_path, "Jin", "2025-01")
+        capsys.readouterr()
+
+        assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
+                   "2025-01", "--jusqu-a", "2025-01", "--dossier", str(tmp_path)) == 0
+        resume = capsys.readouterr().out.strip().splitlines()[-1]
+        assert "manquantes" not in resume
+        assert "acquittés" in resume
