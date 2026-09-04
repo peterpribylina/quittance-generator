@@ -86,6 +86,11 @@ n'émet une quittance qu'une fois payé — le libellé de la commande le dit, n
 le présenter comme un relevé bancaire. Les relevés de `src/data_2025.py`
 s'arrêtent fin 2025 et ne sont pas branchés.
 
+Le suivi couvre **douze mois depuis `--depuis`** (l'annee de bail), pas
+seulement les mois ecoules. Les mois posterieurs au mois courant sont donc
+affiches vides et comptes dans « A venir », jamais dans « En retard » : sans
+cette distinction, septembre afficherait onze mois d'impayes fictifs.
+
 Les marqueurs `✓`/`·` passent par `cli.markers()`, qui retombe sur `X`/`.`
 quand `sys.stdout` ne sait pas les encoder : une redirection Windows repasse en
 cp1252 et ferait planter la commande.

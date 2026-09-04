@@ -404,53 +404,65 @@ class TestSuivi:
             encoding = "cp1252"
 
         monkeypatch.setattr(cli.sys, "stdout", SortiePauvre())
-        assert cli.markers() == ("X", ".")
+        assert cli.markers() == ("X", ".", " ")
 
-    def test_total_acquitte_et_restant(
+    def test_totaux_de_l_annee(
         self, config_file: Path, tmp_path: Path, capsys
     ) -> None:
-        """Jin est a 450,50 par mois : une quittance sur trois mois donne
-        1 351,50 attendus, 450,50 acquittes et 901,00 restants."""
+        """Jin est a 450,50 par mois. Sur trois mois tous echus, une quittance
+        emise donne 1 351,50 attendus, 450,50 acquittes, 901,00 en retard."""
         self._genere(config_file, tmp_path, "Jin", "2025-01")
         capsys.readouterr()
 
         assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
                    "2025-01", "--jusqu-a", "2025-03", "--dossier", str(tmp_path)) == 0
         sortie = capsys.readouterr().out
-        assert "Depuis janvier 2025" in sortie
-        assert "3 termes" in sortie
         for libelle, montant in (
             ("Attendu", "1 351,50"),
             ("Acquitté", "450,50"),
-            ("Restant", "901,00"),
+            ("En retard", "901,00"),
+            ("À venir", "0,00"),
         ):
             ligne = next(l for l in sortie.splitlines() if l.strip().startswith(libelle))
             assert montant in ligne, f"{libelle} : {ligne!r}"
-        assert "1 quittances émises" in sortie
-        assert "2 manquantes" in sortie
 
-    def test_cumul_grandit_avec_la_periode(
+    def test_annee_de_bail_par_defaut(
         self, config_file: Path, tmp_path: Path, capsys
     ) -> None:
-        """Le total attendu suit le nombre de mois ecoules depuis le depart."""
-        def attendu(jusqu_a: str) -> str:
-            run(config_file, "suivi", "--locataire", "Jin", "--depuis", "2025-01",
-                "--jusqu-a", jusqu_a, "--dossier", str(tmp_path))
-            sortie = capsys.readouterr().out
-            return next(l for l in sortie.splitlines() if l.strip().startswith("Attendu"))
-
-        assert "450,50" in attendu("2025-01")
-        assert "901,00" in attendu("2025-02")
-        assert "1 351,50" in attendu("2025-03")
-
-    def test_restant_nul_quand_tout_est_a_jour(
-        self, config_file: Path, tmp_path: Path, capsys
-    ) -> None:
-        self._genere(config_file, tmp_path, "Jin", "2025-01")
-        capsys.readouterr()
-
+        """Sans --jusqu-a, la periode couvre douze mois depuis --depuis."""
         assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
-                   "2025-01", "--jusqu-a", "2025-01", "--dossier", str(tmp_path)) == 0
+                   "2025-09", "--dossier", str(tmp_path)) == 0
         sortie = capsys.readouterr().out
-        restant = next(l for l in sortie.splitlines() if l.strip().startswith("Restant"))
-        assert "0,00" in restant and "0 manquantes" in restant
+        assert "septembre 2025 - août 2026" in sortie
+        assert "12 mois" in sortie
+        assert "09 10 11 12 01 02 03 04 05 06 07 08" in sortie
+
+    def test_mois_non_echus_ne_sont_pas_des_retards(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Un loyer de mars n'est pas un impaye en septembre."""
+        from datetime import date
+
+        depart = date.today().replace(day=1)
+        assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
+                   depart.strftime("%Y-%m"), "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        retard = next(l for l in sortie.splitlines() if l.strip().startswith("En retard"))
+        avenir = next(l for l in sortie.splitlines() if l.strip().startswith("À venir"))
+        assert "1 mois échus" in retard      # le mois courant seul
+        assert "11 mois non échus" in avenir
+
+    def test_attendu_est_la_somme_des_trois(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
+                   "2025-09", "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        montants = {}
+        for libelle in ("Attendu", "Acquitté", "En retard", "À venir"):
+            ligne = next(l for l in sortie.splitlines() if l.strip().startswith(libelle))
+            # str.split() couperait aussi sur l'espace insecable du montant.
+            montants[libelle] = ligne.split("€")[0].replace(libelle, "").strip()
+        # 12 mois a 450,50 = 5 406,00
+        assert montants["Attendu"] == "5 406,00"
+        assert montants["Acquitté"] == "0,00"

@@ -161,7 +161,7 @@ def cmd_tenants(config: Config, args: argparse.Namespace) -> int:
 
 
 def markers() -> tuple[str, str]:
-    """(emise, manquante), en ASCII si la sortie ne sait pas encoder mieux.
+    """(emise, en retard, a venir), en ASCII si la sortie encode mal.
 
     Le terminal Windows accepte l'Unicode, mais une redirection retombe en
     cp1252 : sans ce repli, `quittances suivi > fichier.txt` planterait.
@@ -170,26 +170,44 @@ def markers() -> tuple[str, str]:
     try:
         "✓·".encode(encodage)
     except (UnicodeEncodeError, LookupError):
-        return "X", "."
-    return "✓", "·"
+        return "X", ".", " "
+    return "✓", "·", " "
+
+
+MOIS_PAR_DEFAUT = 12  # une annee de bail
 
 
 def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
-    """Tableau locataires x mois, coche la ou une quittance existe.
+    """Tableau locataires x mois de l'annee de bail, coche ou une quittance existe.
 
     L'application ne consulte aucun compte bancaire : le seul signal disponible
     est l'existence du PDF, emis lorsque le loyer est arrive. C'est donc un
     suivi des quittances emises, pas un releve de paiements.
+
+    Les mois posterieurs au mois courant sont affiches mais comptes a part : un
+    loyer de mars n'est pas un impaye en septembre.
     """
-    debut = parse_period(args.depuis) if args.depuis else date.today().replace(month=1, day=1)
-    fin = parse_period(args.jusqu_a) if args.jusqu_a else date.today().replace(day=1)
-    if debut > fin:
-        raise CliError(
-            f"Periode vide : {debut:%m/%Y} est posterieur a {fin:%m/%Y}."
-        )
-    mois = iter_months(debut, fin)
+    debut = (
+        parse_period(args.depuis)
+        if args.depuis
+        else date.today().replace(month=1, day=1)
+    )
+    if args.jusqu_a:
+        fin = parse_period(args.jusqu_a)
+        if debut > fin:
+            raise CliError(f"Periode vide : {debut:%m/%Y} est posterieur a {fin:%m/%Y}.")
+        mois = iter_months(debut, fin)
+    else:
+        mois = [
+            date(debut.year + (debut.month - 1 + i) // 12,
+                 (debut.month - 1 + i) % 12 + 1, 1)
+            for i in range(MOIS_PAR_DEFAUT)
+        ]
+        fin = mois[-1]
+
+    courant = date.today().replace(day=1)
     racine = Path(args.dossier) if args.dossier else None
-    emise, manquante = markers()
+    emise, manquante, future = markers()
 
     # Un etat des lieux porte par defaut sur tout le monde.
     tenants = (
@@ -200,65 +218,79 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
 
     lignes = []
     for tenant in tenants:
-        presence = [
-            quittance_path(tenant, m, racine).is_file() for m in mois
-        ]
-        manquants = [m for m, presente in zip(mois, presence) if not presente]
+        etats = []
+        for m in mois:
+            if quittance_path(tenant, m, racine).is_file():
+                etats.append("emise")
+            elif m <= courant:
+                etats.append("retard")
+            else:
+                etats.append("avenir")
         terme = (
             tenant.rent + (tenant.charges or Decimal("0"))
             if tenant.rent is not None
             else None
         )
-        du = terme * len(manquants) if terme is not None and manquants else None
-        acquitte = terme * sum(presence) if terme is not None else None
-        lignes.append((tenant, presence, manquants, du, acquitte))
+        compte = {etat: etats.count(etat) for etat in ("emise", "retard", "avenir")}
+        montants = (
+            {etat: terme * n for etat, n in compte.items()}
+            if terme is not None
+            else None
+        )
+        lignes.append((tenant, etats, compte, montants))
 
     if args.manquants:
-        lignes = [ligne for ligne in lignes if ligne[2]]
+        lignes = [ligne for ligne in lignes if ligne[2]["retard"]]
 
-    titre = f"Quittances emises de {month_year(debut)} a {month_year(fin)}"
-    print(titre)
+    print(f"Quittances emises de {month_year(debut)} a {month_year(fin)}")
     print("Une quittance n'est emise qu'une fois le loyer encaisse.\n")
 
     if not lignes:
         print("Aucun locataire a afficher.")
         return 0
 
+    symboles = {"emise": emise, "retard": manquante, "avenir": future}
     largeur_nom = max(len(ligne[0].short_name) for ligne in lignes)
-    entete_mois = " ".join(f"{m:%m}" for m in mois)
-    print(f"{'LOCATAIRE'.ljust(largeur_nom)}  {'MAISON'.ljust(7)}  {entete_mois}   MANQUE")
+    entete = " ".join(f"{m:%m}" for m in mois)
+    print(f"{'LOCATAIRE'.ljust(largeur_nom)}  {'MAISON'.ljust(7)}  {entete}   RETARD")
 
-    for tenant, presence, manquants, du, _ in lignes:
-        cases = " ".join(f"{emise if p else manquante} " for p in presence)
-        reste = f"{len(manquants)}" if manquants else "-"
-        montant = f"  {format_amount(du)}" if du is not None else ""
+    for tenant, etats, compte, montants in lignes:
+        cases = " ".join(f"{symboles[e]} " for e in etats)
+        retard = f"{compte['retard']}" if compte["retard"] else "-"
+        montant = (
+            f"  {format_amount(montants['retard'])}"
+            if montants is not None and compte["retard"]
+            else ""
+        )
         print(
             f"{tenant.short_name.ljust(largeur_nom)}  "
-            f"{tenant.property.key.ljust(7)}  {cases}  {reste.rjust(5)}{montant}"
+            f"{tenant.property.key.ljust(7)}  {cases}  {retard.rjust(6)}{montant}"
         )
 
-    total_emises = sum(sum(ligne[1]) for ligne in lignes)
-    total_manquants = sum(len(ligne[2]) for ligne in lignes)
-    total_du = sum((l[3] for l in lignes if l[3] is not None), Decimal("0"))
-    total_acquitte = sum((l[4] for l in lignes if l[4] is not None), Decimal("0"))
+    totaux = {
+        etat: sum(ligne[2][etat] for ligne in lignes)
+        for etat in ("emise", "retard", "avenir")
+    }
+    euros = {
+        etat: sum(
+            (ligne[3][etat] for ligne in lignes if ligne[3] is not None), Decimal("0")
+        )
+        for etat in ("emise", "retard", "avenir")
+    }
+    attendu = euros["emise"] + euros["retard"] + euros["avenir"]
 
-    # Cumul sur toute la periode affichee : il grandit d'un terme par mois
-    # ecoule, ce qui donne le total attendu depuis le mois de depart.
-    total_attendu = total_acquitte + total_du
-    termes = total_emises + total_manquants
-
-    print(
-        f"\nDepuis {month_year(debut)} - {len(lignes)} locataires, "
-        f"{termes} termes"
-    )
-    colonnes = (
-        ("Attendu", total_attendu, ""),
-        ("Acquitté", total_acquitte, f"{total_emises} quittances émises"),
-        ("Restant", total_du, f"{total_manquants} manquantes"),
-    )
-    for libelle, montant, detail in colonnes:
-        print(f"  {libelle.ljust(9)} {format_amount(montant).rjust(12)}   {detail}".rstrip())
-    if any(ligne[3] is None and ligne[2] for ligne in lignes):
+    print(f"\nAnnee {month_year(debut)} - {month_year(fin)} : "
+          f"{len(lignes)} locataires, {len(mois)} mois")
+    for libelle, montant, detail in (
+        ("Attendu", attendu, f"{len(lignes) * len(mois)} termes"),
+        ("Acquitté", euros["emise"], f"{totaux['emise']} quittances émises"),
+        ("En retard", euros["retard"], f"{totaux['retard']} mois échus impayés"),
+        ("À venir", euros["avenir"], f"{totaux['avenir']} mois non échus"),
+    ):
+        print(
+            f"  {libelle.ljust(10)} {format_amount(montant).rjust(12)}   {detail}".rstrip()
+        )
+    if any(ligne[3] is None for ligne in lignes):
         print("Montant indisponible pour les locataires sans « rent » configure.")
     return 0
 

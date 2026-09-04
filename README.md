@@ -154,19 +154,24 @@ quittances suivi --depuis 2026-09
 ```
 
 ```
-LOCATAIRE    MAISON   09   MANQUE
-Alice R.     anzin    ✓       -
-Elsa M.      anzin    ·       1  420,00 €
+LOCATAIRE    MAISON   09 10 11 12 01 02 03 04 05 06 07 08   RETARD
+Alice R.     anzin    ✓                                         -
+Elsa M.      anzin    ·                                         1  420,00 €
 
-Depuis septembre 2026 - 10 locataires, 10 termes
-  Attendu     4 160,00 €
-  Acquitté    2 070,00 €   5 quittances émises
-  Restant     2 090,00 €   5 manquantes
+Annee septembre 2026 - août 2027 : 10 locataires, 12 mois
+  Attendu     49 920,00 €   120 termes
+  Acquitté     2 070,00 €   5 quittances émises
+  En retard    2 090,00 €   5 mois échus impayés
+  À venir     45 760,00 €   110 mois non échus
 ```
 
-Le cumul porte sur toute la période affichée : « Attendu » grandit d'un terme
-par locataire à chaque mois écoulé depuis `--depuis`, ce qui donne le total dû
-depuis septembre sans rien avoir à ressaisir.
+Sans `--jusqu-a`, la période couvre **douze mois** à partir de `--depuis`,
+c'est-à-dire l'année de bail. « Attendu » est donc le total annuel, fixe, et
+c'est « Acquitté » qui progresse mois après mois.
+
+Les mois postérieurs au mois courant sont affichés mais comptés à part : un
+loyer de mars n'est pas un impayé en septembre. Seule la ligne « En retard »
+mesure ce qui est réellement dû, et c'est elle qui doit guider les relances.
 
 `suivi` lit l'existence des quittances sur le disque : une quittance n'étant
 émise qu'une fois le loyer encaissé, sa présence vaut paiement. L'application ne
