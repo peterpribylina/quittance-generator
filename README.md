@@ -178,6 +178,17 @@ mesure ce qui est réellement dû, et c'est elle qui doit guider les relances.
 consulte aucun compte bancaire. Ajouter `--manquants` pour ne lister que les
 retards, `--jusqu-a` pour borner, `--maison` ou `--locataire` pour restreindre.
 
+Relancer ceux qui ont un mois échu sans quittance :
+
+```bash
+quittances relance --depuis 2026-09
+```
+
+Sans `--envoyer`, la commande affiche les messages sans rien expédier — une
+relance part à ton nom, elle se relit avant. Seuls les mois **échus** déclenchent
+un rappel : un loyer de mars n'est jamais réclamé en septembre. Le message liste
+les mois concernés et le total dû.
+
 Lister les locataires configurés :
 
 ```bash

@@ -466,3 +466,81 @@ class TestSuivi:
         # 12 mois a 450,50 = 5 406,00
         assert montants["Attendu"] == "5 406,00"
         assert montants["Acquitté"] == "0,00"
+
+
+class TestRelance:
+    """Une relance part au nom du bailleur : rien sans --envoyer."""
+
+    def test_apercu_sans_envoi(
+        self, config_file: Path, tmp_path: Path, capsys, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            cli, "send", lambda *a, **k: pytest.fail("aucun envoi sans --envoyer")
+        )
+        assert run(config_file, "relance", "--locataire", "Jin", "--depuis",
+                   "2025-01", "--jusqu-a", "2025-02", "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        assert "Rappel : 2 loyers en attente" in sortie
+        assert "janvier et février 2025" in sortie
+        assert "Email non envoye" in sortie
+
+    def test_locataire_a_jour_non_relance(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        assert run(config_file, "--locataire", "Jin", "--periode", "2025-01",
+                   "--dossier", str(tmp_path)) == 0
+        capsys.readouterr()
+
+        assert run(config_file, "relance", "--locataire", "Jin", "--depuis",
+                   "2025-01", "--jusqu-a", "2025-01", "--dossier", str(tmp_path)) == 0
+        assert "personne a relancer" in capsys.readouterr().out
+
+    def test_mois_non_echus_jamais_relances(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Sur une annee de bail, seuls les mois echus declenchent un rappel."""
+        from datetime import date
+
+        depart = date.today().replace(day=1)
+        assert run(config_file, "relance", "--locataire", "Jin", "--depuis",
+                   depart.strftime("%Y-%m"), "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        assert "Rappel : loyer de" in sortie          # un seul mois
+        assert "loyers en attente" not in sortie
+
+    def test_envoi_reel(
+        self, config_file: Path, tmp_path: Path, capsys, monkeypatch
+    ) -> None:
+        envoyes = []
+        monkeypatch.setenv("SMTP_USER", "bailleur@example.com")
+        monkeypatch.setenv("SMTP_PASSWORD", "secret")
+        monkeypatch.setattr(cli, "send", lambda s, m: envoyes.append(m))
+
+        assert run(config_file, "relance", "--locataire", "Jin", "--depuis",
+                   "2025-01", "--jusqu-a", "2025-01", "--dossier", str(tmp_path),
+                   "--envoyer") == 0
+        assert len(envoyes) == 1
+        message = envoyes[0]
+        assert message["To"] == "jin@example.com"
+        assert "Rappel" in message["Subject"]
+        assert list(message.iter_attachments()) == []  # pas de piece jointe
+
+    def test_sans_email_configure(
+        self, config_file: Path, tmp_path: Path, capsys, monkeypatch
+    ) -> None:
+        import yaml
+
+        brut = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+        del brut["tenants"]["Jin"]["email"]
+        config_file.write_text(
+            yaml.safe_dump(brut, allow_unicode=True, sort_keys=False), encoding="utf-8"
+        )
+        monkeypatch.setenv("SMTP_USER", "bailleur@example.com")
+        monkeypatch.setenv("SMTP_PASSWORD", "secret")
+        monkeypatch.setattr(cli, "send", lambda *a, **k: pytest.fail("envoi interdit"))
+
+        code = run(config_file, "relance", "--locataire", "Jin", "--depuis",
+                   "2025-01", "--jusqu-a", "2025-01", "--dossier", str(tmp_path),
+                   "--envoyer")
+        assert code == 1
+        assert "Aucune adresse email" in capsys.readouterr().err

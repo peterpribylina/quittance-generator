@@ -86,6 +86,10 @@ n'émet une quittance qu'une fois payé — le libellé de la commande le dit, n
 le présenter comme un relevé bancaire. Les relevés de `src/data_2025.py`
 s'arrêtent fin 2025 et ne sont pas branchés.
 
+`suivi` et `relance` partagent `etats_locataire` : les deux doivent s'accorder
+sur ce qui constitue un retard, sinon on relancerait un mois non echu. Ne pas
+dupliquer cette logique.
+
 Le suivi couvre **douze mois depuis `--depuis`** (l'annee de bail), pas
 seulement les mois ecoules. Les mois posterieurs au mois courant sont donc
 affiches vides et comptes dans « A venir », jamais dans « En retard » : sans

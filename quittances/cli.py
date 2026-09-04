@@ -21,7 +21,13 @@ from pathlib import Path
 from typing import Sequence
 
 from .config import Config, ConfigError, Tenant
-from .documents import Attestation, DocumentError, Quittance, quittance_path
+from .documents import (
+    Attestation,
+    DocumentError,
+    Quittance,
+    Relance,
+    quittance_path,
+)
 from .formatting import format_amount, iter_months, month_year, parse_amount
 from .mailer import MailError, MailSettings, build_message, send
 from .pdf import render_attestation, render_quittance
@@ -127,7 +133,7 @@ def _deliver(
     tenant: Tenant,
     subject: str,
     bodies: tuple[str, str],
-    attachment: Path,
+    attachment: Path | None = None,
 ) -> None:
     if not tenant.emails:
         raise MailError(
@@ -177,15 +183,10 @@ def markers() -> tuple[str, str]:
 MOIS_PAR_DEFAUT = 12  # une annee de bail
 
 
-def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
-    """Tableau locataires x mois de l'annee de bail, coche ou une quittance existe.
+def periode_suivi(args: argparse.Namespace) -> tuple[list[date], date, date]:
+    """Mois couverts, du premier au dernier.
 
-    L'application ne consulte aucun compte bancaire : le seul signal disponible
-    est l'existence du PDF, emis lorsque le loyer est arrive. C'est donc un
-    suivi des quittances emises, pas un releve de paiements.
-
-    Les mois posterieurs au mois courant sont affiches mais comptes a part : un
-    loyer de mars n'est pas un impaye en septembre.
+    Sans `--jusqu-a`, la fenetre vaut une annee de bail a partir de `--depuis`.
     """
     debut = (
         parse_period(args.depuis)
@@ -196,16 +197,46 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
         fin = parse_period(args.jusqu_a)
         if debut > fin:
             raise CliError(f"Periode vide : {debut:%m/%Y} est posterieur a {fin:%m/%Y}.")
-        mois = iter_months(debut, fin)
-    else:
-        mois = [
-            date(debut.year + (debut.month - 1 + i) // 12,
-                 (debut.month - 1 + i) % 12 + 1, 1)
-            for i in range(MOIS_PAR_DEFAUT)
-        ]
-        fin = mois[-1]
+        return iter_months(debut, fin), debut, fin
+    mois = [
+        date(debut.year + (debut.month - 1 + i) // 12,
+             (debut.month - 1 + i) % 12 + 1, 1)
+        for i in range(MOIS_PAR_DEFAUT)
+    ]
+    return mois, debut, mois[-1]
 
+
+def etats_locataire(
+    tenant: Tenant, mois: Sequence[date], racine: Path | None
+) -> list[str]:
+    """« emise », « retard » ou « avenir » pour chaque mois.
+
+    Partage par `suivi` et `relance` : les deux doivent s'accorder sur ce qui
+    constitue un retard, sans quoi on relancerait un mois non echu.
+    """
     courant = date.today().replace(day=1)
+    etats = []
+    for m in mois:
+        if quittance_path(tenant, m, racine).is_file():
+            etats.append("emise")
+        elif m <= courant:
+            etats.append("retard")
+        else:
+            etats.append("avenir")
+    return etats
+
+
+def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
+    """Tableau locataires x mois de l'annee de bail, coche ou une quittance existe.
+
+    L'application ne consulte aucun compte bancaire : le seul signal disponible
+    est l'existence du PDF, emis lorsque le loyer est arrive. C'est donc un
+    suivi des quittances emises, pas un releve de paiements.
+
+    Les mois posterieurs au mois courant sont affiches mais comptes a part : un
+    loyer de mars n'est pas un impaye en septembre.
+    """
+    mois, debut, fin = periode_suivi(args)
     racine = Path(args.dossier) if args.dossier else None
     emise, manquante, future = markers()
 
@@ -218,14 +249,7 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
 
     lignes = []
     for tenant in tenants:
-        etats = []
-        for m in mois:
-            if quittance_path(tenant, m, racine).is_file():
-                etats.append("emise")
-            elif m <= courant:
-                etats.append("retard")
-            else:
-                etats.append("avenir")
+        etats = etats_locataire(tenant, mois, racine)
         terme = (
             tenant.rent + (tenant.charges or Decimal("0"))
             if tenant.rent is not None
@@ -354,6 +378,70 @@ def cmd_quittance(config: Config, args: argparse.Namespace) -> int:
     return 1 if erreurs else 0
 
 
+def cmd_relance(config: Config, args: argparse.Namespace) -> int:
+    """Rappel amiable aux locataires dont un mois echu n'a pas de quittance.
+
+    Sans `--envoyer`, affiche les messages sans rien expedier : une relance
+    part au nom du bailleur, elle se relit avant d'etre envoyee.
+    """
+    mois, debut, fin = periode_suivi(args)
+    racine = Path(args.dossier) if args.dossier else None
+    tenants = (
+        select_tenants(config, args)
+        if (args.locataire or args.maison or args.tous)
+        else list(config.tenants.values())
+    )
+
+    relances = []
+    for tenant in tenants:
+        etats = etats_locataire(tenant, mois, racine)
+        retards = tuple(m for m, etat in zip(mois, etats) if etat == "retard")
+        if not retards:
+            continue
+        terme = (
+            tenant.rent + (tenant.charges or Decimal("0"))
+            if tenant.rent is not None
+            else None
+        )
+        relances.append(Relance(tenant=tenant, months=retards, monthly_amount=terme))
+
+    print(f"Retards sur {month_year(debut)} - {month_year(fin)}\n")
+    if not relances:
+        print("Aucun retard : personne a relancer.")
+        return 0
+
+    if args.envoyer and len(relances) > 1:
+        noms = ", ".join(r.tenant.full_name for r in relances)
+        if not _confirm(f"Relancer {len(relances)} locataires ({noms}) ?"):
+            raise CliError("Envoi annule.")
+
+    erreurs = 0
+    for relance in relances:
+        destinataires = ", ".join(relance.tenant.emails) or "(aucune adresse)"
+        total = f" - {format_amount(relance.total)}" if relance.total else ""
+        print(f"{relance.tenant.full_name} <{destinataires}>{total}")
+        print(f"  Objet : {relance.email_subject}")
+        if not args.envoyer:
+            texte, _ = relance.email_body(config.landlord.first_name)
+            for ligne in texte.splitlines():
+                print(f"  | {ligne}" if ligne else "  |")
+            print("  Email non envoye (ajoutez --envoyer)\n")
+            continue
+        try:
+            _deliver(
+                config,
+                relance.tenant,
+                relance.email_subject,
+                relance.email_body(config.landlord.first_name),
+                attachment=None,
+            )
+        except MailError as exc:
+            erreurs += 1
+            print(f"  ECHEC de l'envoi : {exc}", file=sys.stderr)
+        print()
+    return 1 if erreurs else 0
+
+
 def cmd_attestation(config: Config, args: argparse.Namespace) -> int:
     depuis = parse_date(args.depuis)
     emise_le = parse_date(args.date) if args.date else date.today()
@@ -449,6 +537,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_suivi.add_argument("--dossier", metavar="CHEMIN")
     p_suivi.set_defaults(handler=cmd_suivi)
 
+    p_relance = sous.add_parser(
+        "relance", help="rappelle les locataires dont un mois echu est impaye")
+    p_relance.add_argument("--locataire", action="append", metavar="CLE")
+    p_relance.add_argument("--tous", action="store_true")
+    p_relance.add_argument("--maison", metavar="CLE")
+    p_relance.add_argument("--depuis", metavar="AAAA-MM",
+                           help="defaut : janvier de l'annee en cours")
+    p_relance.add_argument("--jusqu-a", metavar="AAAA-MM", dest="jusqu_a")
+    p_relance.add_argument("--dossier", metavar="CHEMIN")
+    p_relance.add_argument("--envoyer", action="store_true",
+                           help="envoie les rappels (sinon, simple apercu)")
+    p_relance.set_defaults(handler=cmd_relance)
+
     p_attestation = sous.add_parser("attestation", help="genere une attestation")
     _add_common_arguments(p_attestation)
     p_attestation.add_argument("--depuis", required=True, metavar="DATE",
@@ -458,7 +559,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-COMMANDES = ("quittance", "attestation", "locataires", "suivi")
+COMMANDES = ("quittance", "attestation", "locataires", "suivi", "relance")
 
 
 def inject_default_command(argv: Sequence[str]) -> list[str]:

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from quittances.config import Config
-from quittances.documents import Attestation, DocumentError, Quittance
+from quittances.documents import Attestation, DocumentError, Quittance, Relance
 
 NBSP = "\u00a0"  # espace insecable, cf. formatting.format_amount
 
@@ -107,3 +107,59 @@ def test_attestation_valide(config: Config, tmp_path: Path) -> None:
     assert attestation.hosted_since_label == "01/09/2025"
     assert attestation.filename.endswith("_2025.pdf")
     assert attestation.output_path(tmp_path).parts[-2] == "Docs"
+
+
+def build_relance(config: Config, mois: list[date], montant="450.50") -> Relance:
+    return Relance(
+        tenant=config.tenant("Jin"),
+        months=tuple(mois),
+        monthly_amount=Decimal(montant) if montant else None,
+    )
+
+
+def test_relance_un_seul_mois(config: Config) -> None:
+    relance = build_relance(config, [date(2026, 9, 1)])
+    assert relance.months_label == "septembre 2026"
+    assert relance.email_subject == "Rappel : loyer de septembre 2026"
+    texte, _ = relance.email_body("Peter")
+    assert "au mois de septembre 2026" in texte
+    assert "aux mois" not in texte
+
+
+def test_relance_annee_ecrite_une_seule_fois(config: Config) -> None:
+    relance = build_relance(
+        config, [date(2026, 7, 1), date(2026, 8, 1), date(2026, 9, 1)]
+    )
+    assert relance.months_label == "juillet, août et septembre 2026"
+    texte, _ = relance.email_body("Peter")
+    assert "aux mois de juillet, août et septembre 2026" in texte
+
+
+def test_relance_a_cheval_sur_deux_annees(config: Config) -> None:
+    relance = build_relance(
+        config, [date(2026, 11, 1), date(2026, 12, 1), date(2027, 1, 1)]
+    )
+    assert relance.months_label == "novembre et décembre 2026, janvier 2027"
+
+
+def test_relance_total_cumule(config: Config) -> None:
+    relance = build_relance(config, [date(2026, 8, 1), date(2026, 9, 1)])
+    assert relance.total == Decimal("901.00")
+    texte, html = relance.email_body("Peter")
+    assert f"901,00{NBSP}€" in texte
+    assert f"<b>901,00{NBSP}€</b>" in html
+    assert relance.email_subject == "Rappel : 2 loyers en attente"
+
+
+def test_relance_sans_montant_connu(config: Config) -> None:
+    """Un locataire sans loyer configure est relance sans chiffre."""
+    relance = build_relance(config, [date(2026, 9, 1)], montant=None)
+    assert relance.total is None
+    texte, _ = relance.email_body("Peter")
+    assert "montant total" not in texte
+    assert "septembre 2026" in texte
+
+
+def test_relance_sans_mois_refusee(config: Config) -> None:
+    with pytest.raises(DocumentError, match="rien a relancer"):
+        Relance(tenant=config.tenant("Jin"), months=())

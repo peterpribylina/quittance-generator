@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from itertools import groupby
 from decimal import Decimal
 from pathlib import Path
 
 from .config import Tenant
-from .formatting import format_amount, format_date, month_year
+from .formatting import format_amount, format_date, month_name, month_year
 
 
 class DocumentError(Exception):
@@ -110,6 +111,87 @@ class Quittance:
             f"Bonjour {prenom},<br/><br/>"
             f"ci-joint la quittance de loyer pour le mois de "
             f"<b>{self.period_label}</b>.<br/><br/>"
+            f"Bien à toi,<br/>{landlord_first_name}"
+        )
+        return texte, html
+
+
+@dataclass(frozen=True)
+class Relance:
+    """Rappel amiable pour un ou plusieurs mois echus sans quittance.
+
+    Ne porte aucun document : la relance est un simple email. Le montant est
+    facultatif, un locataire sans loyer configure etant relance sans chiffre
+    plutot que pas du tout.
+    """
+
+    tenant: Tenant
+    months: tuple[date, ...]
+    monthly_amount: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        if not self.months:
+            raise DocumentError(
+                f"Aucun mois en retard pour {self.tenant.full_name} : "
+                "rien a relancer."
+            )
+
+    @property
+    def total(self) -> Decimal | None:
+        if self.monthly_amount is None:
+            return None
+        return (self.monthly_amount * len(self.months)).quantize(Decimal("0.01"))
+
+    @property
+    def months_label(self) -> str:
+        """« juillet, août et septembre 2026 » : l'annee n'est ecrite qu'une
+        fois par groupe, pas apres chaque mois."""
+        groupes = []
+        for annee, mois in groupby(self.months, key=lambda m: m.year):
+            noms = [month_name(m.month) for m in mois]
+            if len(noms) == 1:
+                groupes.append(f"{noms[0]} {annee}")
+            else:
+                groupes.append(f"{', '.join(noms[:-1])} et {noms[-1]} {annee}")
+        return ", ".join(groupes)
+
+    @property
+    def email_subject(self) -> str:
+        if len(self.months) == 1:
+            return f"Rappel : loyer de {month_year(self.months[0])}"
+        return f"Rappel : {len(self.months)} loyers en attente"
+
+    def email_body(self, landlord_first_name: str) -> tuple[str, str]:
+        prenom = self.tenant.first_name
+        article = "aux mois de" if len(self.months) > 1 else "au mois de"
+        montant_txt = (
+            f" Le montant total dû est de {format_amount(self.total)}."
+            if self.total is not None
+            else ""
+        )
+        texte = (
+            f"Bonjour {prenom},\n\n"
+            f"sauf erreur de ma part, je n'ai pas encore reçu le loyer "
+            f"correspondant {article} {self.months_label}."
+            f"{montant_txt}\n\n"
+            "Si le règlement est déjà parti, merci de ne pas tenir compte de ce "
+            "message. Dans le cas contraire, peux-tu me dire où en est le "
+            "versement ?\n\n"
+            f"Bien à toi,\n{landlord_first_name}"
+        )
+        montant_html = (
+            f" Le montant total dû est de <b>{format_amount(self.total)}</b>."
+            if self.total is not None
+            else ""
+        )
+        html = (
+            f"Bonjour {prenom},<br/><br/>"
+            f"sauf erreur de ma part, je n'ai pas encore reçu le loyer "
+            f"correspondant {article} <b>{self.months_label}</b>."
+            f"{montant_html}<br/><br/>"
+            "Si le règlement est déjà parti, merci de ne pas tenir compte de ce "
+            "message. Dans le cas contraire, peux-tu me dire où en est le "
+            f"versement ?<br/><br/>"
             f"Bien à toi,<br/>{landlord_first_name}"
         )
         return texte, html
