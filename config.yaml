@@ -136,14 +136,3 @@ tenants:
     title: M
     email: pmathias@gmail.com
 
-  # --- Lille, 84 rue Jules Valles ------------------------------------------
-
-  # Entree de test : ce n'est pas un locataire. Sert a verifier la chaine
-  # complete (PDF + envoi) sur sa propre adresse avant de viser les vrais
-  # destinataires. Incluse par --tous, exclue par --bien anzin|vals.
-  Peter:
-    title: M
-    first_name: Peter
-    last_name: Pribylina
-    email: peter.pribylina+qg@gmail.com
-    property: lille

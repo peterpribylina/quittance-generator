@@ -102,11 +102,15 @@ suite de tests :
 python -m pytest
 ```
 
-Enfin, un essai complet sur sa propre adresse avant de viser un vrai locataire :
+Enfin, une génération à blanc dans un dossier jetable, qui n'envoie rien :
 
 ```bash
-python -m quittances quittance --locataire Peter --periode 2026-09 --loyer 1 --charges 0 --envoyer
+quittances --locataire Alice --dossier .\essai
 ```
+
+Pour éprouver aussi la chaîne d'envoi sans écrire à un locataire, ajouter
+temporairement dans `config.yaml` une entrée pointant sur sa propre adresse,
+puis la retirer.
 
 ### Champs d'un locataire
 

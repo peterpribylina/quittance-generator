@@ -119,10 +119,6 @@ autouse `environnement_propre` s'en charge.
 Les fixtures de `conftest.py` construisent une config de test pointant sur les
 vraies images de `img/`.
 
-Le locataire `Peter` de `config.yaml` n'est pas un locataire : c'est une entree
-de test qui envoie sur l'adresse du bailleur, utilisee pour valider la chaine
-complete avant de viser de vrais destinataires. `--tous` l'inclut.
-
 ## Pièges
 
 Le dossier de destination d'un locataire est déduit de `first_name`/`last_name`
