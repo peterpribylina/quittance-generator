@@ -16,9 +16,12 @@ from .config import Tenant
 from .formatting import (
     elision,
     format_amount,
+    format_amount_en,
     format_date,
     month_name,
+    month_name_en,
     month_year,
+    month_year_en,
 )
 
 
@@ -29,8 +32,23 @@ class DocumentError(Exception):
 # Reformulation de la clause du bail : « Il est payable d'avance le 1er de
 # chaque mois au BAILLEUR ». Rappelee dans les relances pour situer l'echeance.
 ECHEANCE = (
-    "Pour rappel, le bail prévoit que le loyer est payable d'avance, "
+    "📅 Pour rappel, le bail prévoit que le loyer est payable d'avance, "
     "le 1er de chaque mois."
+)
+ECHEANCE_EN = (
+    "📅 As a reminder, the lease provides that rent is payable in advance, "
+    "on the 1st of each month."
+)
+
+# Suggestion pratique : la plupart des retards viennent d'un oubli, pas d'une
+# difficulte de paiement.
+ASTUCE = (
+    "💡 Astuce : un virement programmé le 1er depuis ta banque évite d'y penser "
+    "chaque mois."
+)
+ASTUCE_EN = (
+    "💡 Tip: a standing order set for the 1st from your bank saves you having "
+    "to think about it every month."
 )
 
 
@@ -172,11 +190,30 @@ class Relance:
         return ", ".join(groupes)
 
     @property
+    def months_label_en(self) -> str:
+        """« August and September 2026 », pendant anglais de months_label."""
+        groupes = []
+        for annee, mois in groupby(self.months, key=lambda m: m.year):
+            noms = [month_name_en(m.month) for m in mois]
+            if len(noms) == 1:
+                groupes.append(f"{noms[0]} {annee}")
+            else:
+                groupes.append(f"{', '.join(noms[:-1])} and {noms[-1]} {annee}")
+        return ", ".join(groupes)
+
+    @property
     def email_subject(self) -> str:
+        """Bilingue : la moitie des locataires ne lisent pas le francais."""
         if len(self.months) == 1:
             libelle = month_year(self.months[0])
-            return f"Rappel : loyer {elision(libelle)}{libelle}"
-        return f"Rappel : {len(self.months)} loyers en attente"
+            return (
+                f"Rappel : loyer {elision(libelle)}{libelle} / "
+                f"Rent reminder: {month_year_en(self.months[0])}"
+            )
+        return (
+            f"Rappel : {len(self.months)} loyers en attente / "
+            f"Rent reminder: {len(self.months)} months outstanding"
+        )
 
     def email_body(self, landlord_first_name: str) -> tuple[str, str]:
         prenom = self.tenant.first_name
@@ -188,19 +225,43 @@ class Relance:
             if self.total is not None
             else ""
         )
+        montant_en = (
+            f" The total amount due is {format_amount_en(self.total)}."
+            if self.total is not None
+            else ""
+        )
+        pluriel_en = "months of" if len(self.months) > 1 else "month of"
+
         texte = (
             f"Bonjour {prenom},\n\n"
             f"sauf erreur de ma part, je n'ai pas encore reçu le loyer "
             f"correspondant {article}{self.months_label}."
             f"{montant_txt}\n\n"
             f"{ECHEANCE}\n\n"
+            f"{ASTUCE}\n\n"
             "Si le règlement est déjà parti, merci de ne pas tenir compte de ce "
             "message. Dans le cas contraire, peux-tu me dire où en est le "
             "versement ?\n\n"
-            f"Bien à toi,\n{landlord_first_name}"
+            f"Bien à toi,\n{landlord_first_name}\n\n"
+            f"{'-' * 40}\n\n"
+            f"Hi {prenom},\n\n"
+            f"unless I'm mistaken, I haven't received the rent for the "
+            f"{pluriel_en} {self.months_label_en} yet."
+            f"{montant_en}\n\n"
+            f"{ECHEANCE_EN}\n\n"
+            f"{ASTUCE_EN}\n\n"
+            "If the payment has already been sent, please disregard this "
+            "message. Otherwise, could you let me know where it stands?\n\n"
+            f"Best,\n{landlord_first_name}"
         )
+
         montant_html = (
             f" Le montant total dû est de <b>{format_amount(self.total)}</b>."
+            if self.total is not None
+            else ""
+        )
+        montant_html_en = (
+            f" The total amount due is <b>{format_amount_en(self.total)}</b>."
             if self.total is not None
             else ""
         )
@@ -210,10 +271,21 @@ class Relance:
             f"correspondant {article}<b>{self.months_label}</b>."
             f"{montant_html}<br/><br/>"
             f"{ECHEANCE}<br/><br/>"
+            f"{ASTUCE}<br/><br/>"
             "Si le règlement est déjà parti, merci de ne pas tenir compte de ce "
             "message. Dans le cas contraire, peux-tu me dire où en est le "
             f"versement ?<br/><br/>"
             f"Bien à toi,<br/>{landlord_first_name}"
+            "<br/><br/><hr/><br/>"
+            f"Hi {prenom},<br/><br/>"
+            f"unless I'm mistaken, I haven't received the rent for the "
+            f"{pluriel_en} <b>{self.months_label_en}</b> yet."
+            f"{montant_html_en}<br/><br/>"
+            f"{ECHEANCE_EN}<br/><br/>"
+            f"{ASTUCE_EN}<br/><br/>"
+            "If the payment has already been sent, please disregard this "
+            "message. Otherwise, could you let me know where it stands?<br/><br/>"
+            f"Best,<br/>{landlord_first_name}"
         )
         return texte, html
 

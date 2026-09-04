@@ -120,7 +120,8 @@ def build_relance(config: Config, mois: list[date], montant="450.50") -> Relance
 def test_relance_un_seul_mois(config: Config) -> None:
     relance = build_relance(config, [date(2026, 9, 1)])
     assert relance.months_label == "septembre 2026"
-    assert relance.email_subject == "Rappel : loyer de septembre 2026"
+    assert relance.email_subject.startswith("Rappel : loyer de septembre 2026")
+    assert "Rent reminder: September 2026" in relance.email_subject
     texte, _ = relance.email_body("Peter")
     assert "au mois de septembre 2026" in texte
     assert "aux mois" not in texte
@@ -148,7 +149,8 @@ def test_relance_total_cumule(config: Config) -> None:
     texte, html = relance.email_body("Peter")
     assert f"901,00{NBSP}€" in texte
     assert f"<b>901,00{NBSP}€</b>" in html
-    assert relance.email_subject == "Rappel : 2 loyers en attente"
+    assert relance.email_subject.startswith("Rappel : 2 loyers en attente")
+    assert "2 months outstanding" in relance.email_subject
 
 
 def test_relance_sans_montant_connu(config: Config) -> None:
@@ -183,7 +185,8 @@ def test_elision_dans_la_quittance(config: Config) -> None:
 
 def test_elision_dans_la_relance(config: Config) -> None:
     relance = build_relance(config, [date(2026, 8, 1)])
-    assert relance.email_subject == "Rappel : loyer d'août 2026"
+    assert relance.email_subject.startswith("Rappel : loyer d'août 2026")
+    assert "Rent reminder: August 2026" in relance.email_subject
     texte, _ = relance.email_body("Peter")
     assert "correspondant au mois d'août 2026" in texte
 
@@ -192,3 +195,34 @@ def test_elision_relance_plusieurs_mois(config: Config) -> None:
     relance = build_relance(config, [date(2026, 8, 1), date(2026, 9, 1)])
     texte, _ = relance.email_body("Peter")
     assert "correspondant aux mois d'août et septembre 2026" in texte
+
+
+def test_relance_astuce_et_version_anglaise(config: Config) -> None:
+    relance = build_relance(config, [date(2026, 9, 1)])
+    texte, html = relance.email_body("Peter")
+
+    # Astuce, dans les deux langues.
+    assert "virement programmé le 1er" in texte
+    assert "standing order set for the 1st" in texte
+    assert "💡" in texte and "📅" in texte
+
+    # Le bloc anglais suit le francais, avec ses propres conventions.
+    assert texte.index("Bonjour Jingyi") < texte.index("Hi Jingyi")
+    assert "the month of September 2026" in texte
+    assert "€450.50" in texte          # point decimal, symbole devant
+    assert f"450,50{NBSP}€" in texte   # et la version francaise plus haut
+    assert "<hr/>" in html
+
+
+def test_relance_anglais_pluriel(config: Config) -> None:
+    relance = build_relance(config, [date(2026, 8, 1), date(2026, 9, 1)])
+    texte, _ = relance.email_body("Peter")
+    assert "the months of August and September 2026" in texte
+    assert relance.months_label_en == "August and September 2026"
+
+
+def test_relance_anglais_a_cheval_sur_deux_annees(config: Config) -> None:
+    relance = build_relance(
+        config, [date(2026, 12, 1), date(2027, 1, 1)]
+    )
+    assert relance.months_label_en == "December 2026, January 2027"

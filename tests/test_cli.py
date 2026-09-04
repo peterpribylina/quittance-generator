@@ -544,3 +544,13 @@ class TestRelance:
                    "--envoyer")
         assert code == 1
         assert "Aucune adresse email" in capsys.readouterr().err
+
+    def test_apercu_survit_a_un_encodage_pauvre(self, monkeypatch) -> None:
+        """Les emojis du corps ne doivent pas faire planter une redirection."""
+        class SortiePauvre:
+            encoding = "cp1252"
+
+        monkeypatch.setattr(cli.sys, "stdout", SortiePauvre())
+        rendu = cli.printable("💡 Astuce : virement programmé")
+        assert "Astuce" in rendu
+        assert rendu.encode("cp1252")  # ne leve pas

@@ -44,6 +44,30 @@ def month_year(value: date) -> str:
     return f"{month_name(value.month)} {value.year}"
 
 
+MOIS_EN = (
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+)
+
+
+def month_name_en(month: int) -> str:
+    if not 1 <= month <= 12:
+        raise ValueError(f"Mois invalide : {month}")
+    return MOIS_EN[month - 1]
+
+
+def month_year_en(value: date) -> str:
+    """« September 2026 »."""
+    return f"{month_name_en(value.month)} {value.year}"
+
+
+def format_amount_en(value: Decimal) -> str:
+    """« €1,234.50 » : conventions anglaises, pour la version traduite."""
+    quantized = value.quantize(Decimal("0.01"))
+    signe = "-" if quantized < 0 else ""
+    return f"{signe}€{abs(quantized):,.2f}"
+
+
 VOYELLES = "aàâeéèêiîoôuû"
 
 

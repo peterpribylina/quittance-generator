@@ -180,6 +180,20 @@ def markers() -> tuple[str, str]:
     return "✓", "·", " "
 
 
+def printable(texte: str) -> str:
+    """Rend un texte affichable quel que soit l'encodage de la sortie.
+
+    Les corps d'email contiennent des emojis, absents de cp1252 : sans ce
+    filtre, `quittances relance | more` plantait en UnicodeEncodeError.
+    """
+    encodage = getattr(sys.stdout, "encoding", None) or "ascii"
+    try:
+        texte.encode(encodage)
+    except (UnicodeEncodeError, LookupError):
+        return texte.encode(encodage, errors="replace").decode(encodage)
+    return texte
+
+
 MOIS_PAR_DEFAUT = 12  # une annee de bail
 
 
@@ -420,11 +434,11 @@ def cmd_relance(config: Config, args: argparse.Namespace) -> int:
         destinataires = ", ".join(relance.tenant.emails) or "(aucune adresse)"
         total = f" - {format_amount(relance.total)}" if relance.total else ""
         print(f"{relance.tenant.full_name} <{destinataires}>{total}")
-        print(f"  Objet : {relance.email_subject}")
+        print(printable(f"  Objet : {relance.email_subject}"))
         if not args.envoyer:
             texte, _ = relance.email_body(config.landlord.first_name)
             for ligne in texte.splitlines():
-                print(f"  | {ligne}" if ligne else "  |")
+                print(printable(f"  | {ligne}") if ligne else "  |")
             print("  Email non envoye (ajoutez --envoyer)\n")
             continue
         try:

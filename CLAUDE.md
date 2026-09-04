@@ -91,6 +91,12 @@ n'émet une quittance qu'une fois payé — le libellé de la commande le dit, n
 le présenter comme un relevé bancaire. Les relevés de `src/data_2025.py`
 s'arrêtent fin 2025 et ne sont pas branchés.
 
+La relance est **bilingue** : la moitie des locataires ne lisent pas le
+francais. Les libelles anglais ont leurs propres conventions
+(`month_year_en`, `format_amount_en` qui ecrit « €450.50 » et non
+« 450,50 € »). Les emojis du corps imposent `cli.printable` a l'affichage,
+sinon l'apercu plante en cp1252 comme le faisaient les coches du suivi.
+
 `suivi` et `relance` partagent `etats_locataire` : les deux doivent s'accorder
 sur ce qui constitue un retard, sinon on relancerait un mois non echu. Ne pas
 dupliquer cette logique.
