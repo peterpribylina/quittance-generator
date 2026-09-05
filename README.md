@@ -188,9 +188,10 @@ Sans `--envoyer`, la commande affiche les messages sans rien expédier — une
 relance part à ton nom, elle se relit avant. Seuls les mois **échus** déclenchent
 un rappel : un loyer de mars n'est jamais réclamé en septembre.
 
-Le message est **bilingue** (français puis anglais). Il liste les mois concernés
-et le total dû, rappelle l'échéance du bail, et suggère un virement programmé —
-la plupart des retards venant d'un oubli.
+Le message est **bilingue** (français puis anglais) et mis en forme : montant dû
+en évidence, échéance du bail et suggestion de virement programmé en encarts. La
+version texte accompagne toujours la version HTML, pour les clients qui ne
+l'affichent pas.
 
 Lister les locataires configurés :
 

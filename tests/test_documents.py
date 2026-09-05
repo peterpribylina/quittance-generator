@@ -148,7 +148,7 @@ def test_relance_total_cumule(config: Config) -> None:
     assert relance.total == Decimal("901.00")
     texte, html = relance.email_body("Peter")
     assert f"901,00{NBSP}€" in texte
-    assert f"<b>901,00{NBSP}€</b>" in html
+    assert f"901,00{NBSP}€" in html
     assert relance.email_subject.startswith("Rappel : 2 loyers en attente")
     assert "2 months outstanding" in relance.email_subject
 
@@ -211,7 +211,10 @@ def test_relance_astuce_et_version_anglaise(config: Config) -> None:
     assert "the month of September 2026" in texte
     assert "€450.50" in texte          # point decimal, symbole devant
     assert f"450,50{NBSP}€" in texte   # et la version francaise plus haut
-    assert "<hr/>" in html
+    # Le bloc anglais suit le francais dans le HTML aussi.
+    assert html.index("Bonjour Jingyi") < html.index("Hi Jingyi")
+    assert "border-top" in html  # separateur entre les deux langues
+    assert "English" in html     # repere de section
 
 
 def test_relance_anglais_pluriel(config: Config) -> None:
@@ -226,3 +229,33 @@ def test_relance_anglais_a_cheval_sur_deux_annees(config: Config) -> None:
         config, [date(2026, 12, 1), date(2027, 1, 1)]
     )
     assert relance.months_label_en == "December 2026, January 2027"
+
+
+def test_relance_html_est_une_carte_mise_en_forme(config: Config) -> None:
+    """Le HTML doit rester lisible dans un client email : styles en ligne,
+    tableaux, largeur bornee, aucune ressource distante."""
+    _, html = build_relance(config, [date(2026, 9, 1)]).email_body("Peter")
+
+    assert "max-width:560px" in html
+    assert "<table" in html
+    assert "style=" in html
+    assert "<style" not in html          # supprime par la plupart des clients
+    assert "http://" not in html and "https://" not in html  # rien de distant
+    assert "class=" not in html          # aucune feuille externe a resoudre
+
+
+def test_relance_html_met_le_montant_en_avant(config: Config) -> None:
+    _, html = build_relance(
+        config, [date(2026, 8, 1), date(2026, 9, 1)]
+    ).email_body("Peter")
+    assert "Montant dû" in html
+    assert f"901,00{NBSP}€" in html
+    assert "2 mois" in html
+
+
+def test_relance_html_sans_montant_omet_l_encart(config: Config) -> None:
+    _, html = build_relance(
+        config, [date(2026, 9, 1)], montant=None
+    ).email_body("Peter")
+    assert "Montant dû" not in html
+    assert "septembre 2026" in html

@@ -12,6 +12,7 @@ from itertools import groupby
 from decimal import Decimal
 from pathlib import Path
 
+from . import emails
 from .config import Tenant
 from .formatting import (
     elision,
@@ -255,38 +256,65 @@ class Relance:
             f"Best,\n{landlord_first_name}"
         )
 
+        # Les emojis servent de puces dans les encarts : on les retire du texte
+        # avant de le reinjecter dans le HTML, qui les place lui-meme.
+        echeance_fr = ECHEANCE.removeprefix("📅 ")
+        echeance_en = ECHEANCE_EN.removeprefix("📅 ")
+        astuce_fr = ASTUCE.removeprefix("💡 ")
+        astuce_en = ASTUCE_EN.removeprefix("💡 ")
+
         montant_html = (
-            f" Le montant total dû est de <b>{format_amount(self.total)}</b>."
+            f"Le montant total dû est de <b>{format_amount(self.total)}</b>."
             if self.total is not None
             else ""
         )
-        montant_html_en = (
-            f" The total amount due is <b>{format_amount_en(self.total)}</b>."
-            if self.total is not None
-            else ""
-        )
-        html = (
-            f"Bonjour {prenom},<br/><br/>"
-            f"sauf erreur de ma part, je n'ai pas encore reçu le loyer "
-            f"correspondant {article}<b>{self.months_label}</b>."
-            f"{montant_html}<br/><br/>"
-            f"{ECHEANCE}<br/><br/>"
-            f"{ASTUCE}<br/><br/>"
-            "Si le règlement est déjà parti, merci de ne pas tenir compte de ce "
-            "message. Dans le cas contraire, peux-tu me dire où en est le "
-            f"versement ?<br/><br/>"
-            f"Bien à toi,<br/>{landlord_first_name}"
-            "<br/><br/><hr/><br/>"
-            f"Hi {prenom},<br/><br/>"
-            f"unless I'm mistaken, I haven't received the rent for the "
-            f"{pluriel_en} <b>{self.months_label_en}</b> yet."
-            f"{montant_html_en}<br/><br/>"
-            f"{ECHEANCE_EN}<br/><br/>"
-            f"{ASTUCE_EN}<br/><br/>"
-            "If the payment has already been sent, please disregard this "
-            "message. Otherwise, could you let me know where it stands?<br/><br/>"
-            f"Best,<br/>{landlord_first_name}"
-        )
+        blocs = [
+            emails.entete("Rappel de loyer", self.months_label.capitalize()),
+        ]
+        if self.total is not None:
+            blocs.append(
+                emails.montant(
+                    "Montant dû",
+                    format_amount(self.total),
+                    f"{len(self.months)} mois" if len(self.months) > 1 else "",
+                )
+            )
+        blocs += [
+            emails.paragraphe(
+                f"Bonjour {prenom},<br/><br/>"
+                f"sauf erreur de ma part, je n'ai pas encore reçu le loyer "
+                f"correspondant {article}<b>{self.months_label}</b>."
+            ),
+            emails.encart("📅", echeance_fr),
+            emails.encart("💡", astuce_fr),
+            emails.paragraphe(
+                "Si le règlement est déjà parti, merci de ne pas tenir compte de "
+                "ce message. Dans le cas contraire, peux-tu me dire où en est le "
+                "versement ?"
+            ),
+            emails.signature(f"Bien à toi,<br/>{landlord_first_name}"),
+            emails.separateur(),
+            emails.langue("English"),
+            emails.paragraphe(
+                f"Hi {prenom},<br/><br/>"
+                f"unless I'm mistaken, I haven't received the rent for the "
+                f"{pluriel_en} <b>{self.months_label_en}</b> yet."
+                + (
+                    f" The total amount due is "
+                    f"<b>{format_amount_en(self.total)}</b>."
+                    if self.total is not None
+                    else ""
+                )
+            ),
+            emails.encart("📅", echeance_en),
+            emails.encart("💡", astuce_en),
+            emails.paragraphe(
+                "If the payment has already been sent, please disregard this "
+                "message. Otherwise, could you let me know where it stands?"
+            ),
+            emails.signature(f"Best,<br/>{landlord_first_name}"),
+        ]
+        html = emails.document(blocs)
         return texte, html
 
 
