@@ -16,7 +16,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from reportlab.lib.colors import HexColor
-from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
@@ -24,7 +24,7 @@ from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import Paragraph
 
 from .config import Config
-from .documents import Attestation, Quittance
+from .documents import Attestation, AttestationDomicile, Quittance
 from .formatting import elision
 
 PAGE_WIDTH, PAGE_HEIGHT = A4
@@ -252,6 +252,72 @@ def render_quittance(quittance: Quittance, config: Config, path: Path) -> Path:
 
     _rule(canvas, 742.0)
     _paragraph(canvas, MENTION_LEGALE, MARGE, 754.0, DROITE - MARGE, MENTION)
+
+    canvas.showPage()
+    canvas.save()
+    return path
+
+
+def render_attestation_domicile(
+    attestation: AttestationDomicile, config: Config, path: Path
+) -> Path:
+    """Ecrit l'attestation de domicile en PDF a `path`.
+
+    Mise en page de lettre administrative, et non la grille editoriale des
+    quittances : ce document est lu par un tiers (transporteur, banque,
+    prefecture) qui attend une forme conventionnelle.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    landlord = config.landlord
+    tenant = attestation.tenant
+
+    canvas = pdfcanvas.Canvas(str(path), pagesize=A4)
+    canvas.setTitle("Attestation de domicile")
+    canvas.setAuthor(landlord.legal_name)
+
+    _draw_header(canvas, config)
+
+    # Lieu et date en vis-a-vis du bloc bailleur, comme dans une lettre.
+    _text_right(
+        canvas,
+        f"{landlord.city}, le {attestation.issued_on_label}",
+        DROITE, 118.0, FONT, 9.5, NOIR,
+    )
+
+    _paragraph(
+        canvas, "ATTESTATION DE DOMICILE", MARGE, 190.0, DROITE - MARGE,
+        _style("titre", fontName=FONT_BOLD, fontSize=14, leading=18,
+               alignment=TA_CENTER, textColor=ARDOISE),
+    )
+    _rule(canvas, 220.0)
+
+    adresse_bailleur = ", ".join(landlord.address_lines)
+    corps = (
+        f"Je soussigné {_bold(landlord.legal_name)}, propriétaire-bailleur, "
+        f"demeurant {escape(adresse_bailleur)},",
+        f"atteste que {_bold(tenant.full_name)} est locataire "
+        f"{elision(tenant.dwelling)}{escape(tenant.dwelling)} à compter du "
+        f"{_bold(attestation.lease_start_label)}, à l'adresse suivante : "
+        f"{_bold(tenant.address)}.",
+        escape(attestation.objet),
+    )
+    haut = 252.0
+    for markup in corps:
+        haut += _paragraph(canvas, markup, MARGE, haut, DROITE - MARGE) + 20.0
+
+    _text(
+        canvas,
+        f"Fait à {config.landlord.city}, le {attestation.issued_on_label}.",
+        MARGE, haut + 24.0, FONT, 9.5, NOIR,
+    )
+    _label(canvas, "Signature du bailleur", MARGE, haut + 54.0)
+    _draw_signature(canvas, config, haut + 70.0)
+    _text(
+        canvas, landlord.legal_name,
+        MARGE, haut + 70.0 + SIGNATURE_HAUTEUR + 4.0, FONT, 9.5, NOIR,
+    )
 
     canvas.showPage()
     canvas.save()

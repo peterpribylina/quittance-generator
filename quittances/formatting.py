@@ -95,6 +95,16 @@ def iter_months(debut: date, fin: date) -> list[date]:
     return mois
 
 
+def format_date_long(value: date) -> str:
+    """« 1er septembre 2026 », « 31 août 2026 ».
+
+    Forme attendue dans les attestations. Seul le premier du mois porte
+    l'ordinal, les autres jours s'ecrivent en chiffres nus.
+    """
+    jour = "1er" if value.day == 1 else str(value.day)
+    return f"{jour} {month_name(value.month)} {value.year}"
+
+
 def format_date_en(value: date) -> str:
     """« 3 September 2026 ».
 

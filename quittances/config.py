@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Mapping
@@ -28,6 +29,24 @@ def _require(mapping: Mapping[str, Any], key: str, context: str) -> Any:
     if key not in mapping or mapping[key] in (None, ""):
         raise ConfigError(f"Champ obligatoire manquant : « {key} » dans {context}.")
     return mapping[key]
+
+
+def _optional_date(mapping: Mapping[str, Any], key: str, context: str) -> date | None:
+    """YAML rend deja un `date` pour 2026-09-01 ; une chaine reste toleree."""
+    valeur = mapping.get(key)
+    if valeur in (None, ""):
+        return None
+    if isinstance(valeur, date):
+        return valeur
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(str(valeur), fmt).date()
+        except ValueError:
+            continue
+    raise ConfigError(
+        f"{context} : date invalide pour « {key} » ({valeur!r}). "
+        "Formats acceptes : AAAA-MM-JJ ou JJ/MM/AAAA."
+    )
 
 
 def _optional_amount(mapping: Mapping[str, Any], key: str, context: str) -> Decimal | None:
@@ -83,6 +102,9 @@ class Property:
     key: str
     address: str
     folder: Path
+    # Ce qui est loue, tel qu'il s'ecrit dans une attestation de domicile :
+    # « une chambre » en colocation, « un logement » pour un bien entier.
+    dwelling: str = "une chambre"
 
     @classmethod
     def from_dict(cls, key: str, data: Mapping[str, Any]) -> "Property":
@@ -91,6 +113,7 @@ class Property:
             key=key,
             address=str(_require(data, "address", ctx)),
             folder=Path(str(_require(data, "folder", ctx))),
+            dwelling=str(data.get("dwelling") or "une chambre"),
         )
 
 
@@ -109,6 +132,8 @@ class Tenant:
     charges: Decimal | None = None
     birth_date: str | None = None
     birth_place: str | None = None
+    # Entree dans les lieux, pour l'attestation de domicile.
+    lease_start: date | None = None
 
     @property
     def full_name(self) -> str:
@@ -140,6 +165,10 @@ class Tenant:
     def address(self) -> str:
         return self.property.address
 
+    @property
+    def dwelling(self) -> str:
+        return self.property.dwelling
+
     @classmethod
     def from_dict(
         cls, key: str, data: Mapping[str, Any], properties: Mapping[str, Property]
@@ -167,6 +196,7 @@ class Tenant:
             charges=_optional_amount(data, "charges", ctx),
             birth_date=data.get("birth_date") or None,
             birth_place=data.get("birth_place") or None,
+            lease_start=_optional_date(data, "lease_start", ctx),
         )
 
 

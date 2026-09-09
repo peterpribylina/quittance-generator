@@ -554,3 +554,81 @@ class TestRelance:
         rendu = cli.printable("💡 Astuce : virement programmé")
         assert "Astuce" in rendu
         assert rendu.encode("cp1252")  # ne leve pas
+
+
+class TestDomicile:
+    """Attestation de domicile : justificatif ponctuel, range dans Docs."""
+
+    def test_generation(self, config_file: Path, tmp_path: Path) -> None:
+        code = run(config_file, "domicile", "--locataire", "Jin", "--depuis",
+                   "2026-09-01", "--dossier", str(tmp_path))
+        assert code == 0
+        pdfs = list(tmp_path.rglob("Docs/*.pdf"))
+        assert len(pdfs) == 1
+        assert pdfs[0].name.startswith("Attestation_domicile_Jingyi_LUO_")
+        assert not list(tmp_path.rglob("Quittances/*.pdf"))
+
+    def test_date_d_entree_reprise_de_la_configuration(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        import yaml
+
+        brut = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+        brut["tenants"]["Jin"]["lease_start"] = "2026-09-01"
+        config_file.write_text(
+            yaml.safe_dump(brut, allow_unicode=True, sort_keys=False), encoding="utf-8"
+        )
+        assert run(config_file, "domicile", "--locataire", "Jin",
+                   "--dossier", str(tmp_path)) == 0
+        assert list(tmp_path.rglob("Docs/*.pdf"))
+
+    def test_date_d_entree_manquante_signalee(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        code = run(config_file, "domicile", "--locataire", "Jin",
+                   "--dossier", str(tmp_path))
+        assert code == 1
+        erreur = capsys.readouterr().err
+        assert "lease_start" in erreur
+        assert "--depuis" in erreur
+        assert not list(tmp_path.rglob("*.pdf"))
+
+    def test_un_locataire_sans_date_n_interrompt_pas_le_lot(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        import yaml
+
+        brut = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+        brut["tenants"]["Jin"]["lease_start"] = "2026-09-01"
+        config_file.write_text(
+            yaml.safe_dump(brut, allow_unicode=True, sort_keys=False), encoding="utf-8"
+        )
+        code = run(config_file, "domicile", "--maison", "anzin",
+                   "--dossier", str(tmp_path))
+        assert code == 1                              # Matilde n'a pas de date
+        assert len(list(tmp_path.rglob("Docs/*.pdf"))) == 1   # Jin est genere
+
+    def test_aucun_envoi_sans_option(
+        self, config_file: Path, tmp_path: Path, capsys, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            cli, "send", lambda *a, **k: pytest.fail("aucun envoi sans --envoyer")
+        )
+        assert run(config_file, "domicile", "--locataire", "Jin", "--depuis",
+                   "2026-09-01", "--dossier", str(tmp_path)) == 0
+        assert "Email non envoye" in capsys.readouterr().out
+
+    def test_envoi_joint_le_pdf(
+        self, config_file: Path, tmp_path: Path, monkeypatch
+    ) -> None:
+        envoyes = []
+        monkeypatch.setenv("SMTP_USER", "bailleur@example.com")
+        monkeypatch.setenv("SMTP_PASSWORD", "secret")
+        monkeypatch.setattr(cli, "send", lambda s, m: envoyes.append(m))
+
+        assert run(config_file, "domicile", "--locataire", "Jin", "--depuis",
+                   "2026-09-01", "--dossier", str(tmp_path), "--envoyer") == 0
+        message = envoyes[0]
+        assert message["Subject"] == "Attestation de domicile"
+        pieces = [p.get_filename() for p in message.iter_attachments()]
+        assert pieces and pieces[0].startswith("Attestation_domicile_")

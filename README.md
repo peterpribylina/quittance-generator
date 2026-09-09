@@ -204,6 +204,23 @@ Lister les locataires configurés :
 quittances locataires
 ```
 
+Une attestation de domicile, à remettre à un tiers (transporteur, banque,
+préfecture) :
+
+```bash
+quittances domicile --locataire Elsa --motif "une demande de carte de transport auprès du réseau Transvilles"
+```
+
+Le PDF est signé et rangé dans **`Docs`**, pas dans `Quittances` : c'est un
+justificatif ponctuel, pas une pièce comptable mensuelle. Il est daté du jour et
+son nom porte la date complète, plusieurs attestations pouvant être délivrées la
+même année pour des motifs différents. Ce document et son email restent
+**en français uniquement** — ils s'adressent à une administration française.
+
+La date d'entrée dans les lieux vient de `lease_start` dans `config.yaml`, ou de
+`--depuis`. Sans `--motif`, la clause d'usage s'arrête à « pour servir et valoir
+ce que de droit ».
+
 Une attestation d'hébergement :
 
 ```bash
@@ -224,7 +241,8 @@ Sans installation, tout fonctionne aussi via `python -m quittances`.
 | `--date-paiement DATE` | défaut : 1er jour de la période |
 | `--loyer` / `--charges` | remplacent les montants de `config.yaml` |
 | `--date DATE` | date d'émission, défaut : aujourd'hui |
-| `--depuis DATE` | début d'hébergement (attestation) |
+| `--depuis DATE` | début d'hébergement, ou d'occupation (`domicile`) |
+| `--motif TEXTE` | usage prévu de l'attestation de domicile |
 | `--dossier CHEMIN` | racine de sortie, défaut : dossier du bien |
 | `--forcer` | régénère un PDF déjà présent |
 | `--envoyer` | envoie l'email (sinon, génération seule) |

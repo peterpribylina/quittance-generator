@@ -29,6 +29,7 @@ properties:
     folder: C:/Users/P5073668/Documents/quittances/Coloc_Vals/Locataires_Vals
   lille:
     address: 84 rue Jules Vallès, 59800 Lille
+    dwelling: un logement
     folder: C:/Users/P5073668/Documents/quittances/Appart_Lille/Location
 
 # rent / charges : facultatifs. S'ils sont renseignes, --loyer et --charges

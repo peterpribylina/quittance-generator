@@ -119,6 +119,24 @@ Les marqueurs `✓`/`·` passent par `cli.markers()`, qui retombe sur `X`/`.`
 quand `sys.stdout` ne sait pas les encoder : une redirection Windows repasse en
 cp1252 et ferait planter la commande.
 
+## Attestation de domicile
+
+`AttestationDomicile` n'est pas `Attestation` : la premiere certifie qu'un
+**locataire** occupe un logement contre loyer, la seconde qu'une personne est
+**hebergee a titre gratuit** chez le bailleur. Ne pas les fusionner.
+
+Elle sort dans `Docs` et non `Quittances`, reste **en francais uniquement** (le
+destinataire final est une administration francaise), et son nom de fichier
+porte la date complete : un locataire peut en demander plusieurs dans l'annee
+pour des motifs differents.
+
+Son PDF suit une **mise en page de lettre** — bloc bailleur, lieu et date a
+droite, titre centre, corps justifie, signature — et non la grille editoriale
+des quittances : le lecteur est un tiers qui attend une forme conventionnelle.
+
+`Property.dwelling` (« une chambre », « un logement ») s'ecrit toujours precede
+de `elision` : « locataire d'une chambre », jamais « locataire une chambre ».
+
 ## Rendu PDF
 
 La mise en page est éditoriale : pas de cadre, hiérarchie portée par la

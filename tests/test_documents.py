@@ -8,7 +8,13 @@ import pytest
 
 from quittances import emails
 from quittances.config import Config
-from quittances.documents import Attestation, DocumentError, Quittance, Relance
+from quittances.documents import (
+    Attestation,
+    AttestationDomicile,
+    DocumentError,
+    Quittance,
+    Relance,
+)
 
 NBSP = "\u00a0"  # espace insecable, cf. formatting.format_amount
 
@@ -319,3 +325,80 @@ def test_quittance_encart_montant_en_vert(config: Config) -> None:
     _, html = build_quittance(config).email_body("Peter")
     assert emails.SUCCES in html
     assert emails.ACCENT not in html
+
+
+def build_domicile(config: Config, **overrides) -> AttestationDomicile:
+    params = {
+        "tenant": config.tenant("Jin"),
+        "lease_start": date(2026, 9, 1),
+        "issued_on": date(2026, 9, 9),
+    }
+    params.update(overrides)
+    return AttestationDomicile(**params)
+
+
+def test_domicile_va_dans_docs(config: Config, tmp_path: Path) -> None:
+    """Justificatif ponctuel, pas piece comptable : dossier « Docs »."""
+    chemin = build_domicile(config).output_path(tmp_path)
+    assert chemin.parent == tmp_path / "Jingyi_Luo" / "Docs"
+    assert chemin.parent.name != "Quittances"
+
+
+def test_domicile_nom_de_fichier_date_du_jour(config: Config) -> None:
+    """Date complete : une meme annee peut compter plusieurs attestations."""
+    assert (
+        build_domicile(config).filename
+        == "Attestation_domicile_Jingyi_LUO_2026-09-09.pdf"
+    )
+
+
+def test_domicile_dates_en_toutes_lettres(config: Config) -> None:
+    attestation = build_domicile(config)
+    assert attestation.lease_start_label == "1er septembre 2026"
+    assert attestation.issued_on_label == "9 septembre 2026"
+
+
+def test_domicile_objet_sans_motif(config: Config) -> None:
+    objet = build_domicile(config).objet
+    assert objet.endswith("pour servir et valoir ce que de droit.")
+    assert "notamment" not in objet
+
+
+def test_domicile_objet_avec_motif(config: Config) -> None:
+    attestation = build_domicile(
+        config, motif="une demande de carte de transport auprès de Transvilles"
+    )
+    assert (
+        "notamment dans le cadre d'une demande de carte de transport"
+        in attestation.objet
+    )
+
+
+def test_domicile_motif_sans_elision(config: Config) -> None:
+    """« dans le cadre de la demande », et non « de l'a demande »."""
+    attestation = build_domicile(config, motif="la constitution d'un dossier CAF")
+    assert "dans le cadre de la constitution" in attestation.objet
+
+
+def test_domicile_email_en_francais_seulement(config: Config) -> None:
+    """Ce document s'adresse a une administration francaise : pas de version
+    anglaise, contrairement aux quittances et relances."""
+    texte, html = build_domicile(config).email_body("Peter")
+    assert "Hi Jingyi" not in texte and "Hi Jingyi" not in html
+    assert "English" not in html
+    assert "Best," not in texte
+
+
+def test_domicile_email_mentionne_le_logement_et_la_date(config: Config) -> None:
+    texte, html = build_domicile(config).email_body("Peter")
+    assert "locataire d'une chambre" in texte
+    assert "1er septembre 2026" in texte
+    assert "3 impasse Lecomte, 59410 Anzin" in html
+    assert "justificatif récent" in texte
+
+
+def test_domicile_logement_selon_le_bien(raw_config: dict, tmp_path: Path) -> None:
+    raw_config["properties"]["anzin"]["dwelling"] = "un logement"
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    texte, _ = build_domicile(config).email_body("Peter")
+    assert "locataire d'un logement" in texte

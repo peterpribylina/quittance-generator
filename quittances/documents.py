@@ -20,6 +20,7 @@ from .formatting import (
     format_amount_en,
     format_date,
     format_date_en,
+    format_date_long,
     month_name,
     month_name_en,
     month_year,
@@ -53,6 +54,12 @@ CONSERVATION_EN = (
     "📎 The receipt is attached. Keep it: it serves as proof of address, and "
     "you will be asked for it by the CAF, a guarantor application or a tax "
     "return."
+)
+
+CONSERVATION_DOMICILE = (
+    "📎 Le document est en pièce jointe, signé. Il est daté du jour : si on te "
+    "le demande dans plusieurs mois, redemande-le-moi plutôt que de renvoyer "
+    "celui-ci, beaucoup d'organismes exigent un justificatif récent."
 )
 
 # Suggestion pratique : la plupart des retards viennent d'un oubli, pas d'une
@@ -214,6 +221,89 @@ class Quittance:
             ),
             emails.encart("📎", conservation_en),
             emails.signature(f"Best,<br/>{landlord_first_name}"),
+        ])
+        return texte, html
+
+
+@dataclass(frozen=True)
+class AttestationDomicile:
+    """Attestation de domicile : le bailleur atteste qu'untel est son locataire.
+
+    A ne pas confondre avec `Attestation`, qui certifie un hebergement a titre
+    gratuit chez le bailleur. Ici le locataire paie un loyer, et le document lui
+    sert de justificatif de domicile aupres d'un tiers.
+
+    Reste **en francais uniquement** : il s'adresse a une administration
+    francaise, pas au locataire.
+    """
+
+    tenant: Tenant
+    lease_start: date
+    issued_on: date
+    motif: str | None = None
+
+    @property
+    def lease_start_label(self) -> str:
+        return format_date_long(self.lease_start)
+
+    @property
+    def issued_on_label(self) -> str:
+        return format_date_long(self.issued_on)
+
+    @property
+    def objet(self) -> str:
+        """Clause d'usage, completee du motif quand il est precise."""
+        base = (
+            "La présente attestation est délivrée à la demande de l'intéressé(e), "
+            "pour servir et valoir ce que de droit"
+        )
+        if not self.motif:
+            return f"{base}."
+        return f"{base}, notamment dans le cadre {elision(self.motif)}{self.motif}."
+
+    @property
+    def filename(self) -> str:
+        """Date complete dans le nom : une meme annee peut en compter plusieurs,
+        delivrees pour des motifs differents."""
+        return (
+            f"Attestation_domicile_{self.tenant.first_name}_"
+            f"{self.tenant.last_name.upper().replace(' ', '_')}_"
+            f"{self.issued_on:%Y-%m-%d}.pdf"
+        )
+
+    def output_path(self, root: Path | None = None) -> Path:
+        """<dossier du bien>/<Prenom_Nom>/Docs/<fichier>."""
+        base = Path(root) if root is not None else self.tenant.property.folder
+        return base / self.tenant.slug / "Docs" / self.filename
+
+    @property
+    def email_subject(self) -> str:
+        return "Attestation de domicile"
+
+    def email_body(self, landlord_first_name: str) -> tuple[str, str]:
+        prenom = self.tenant.first_name
+        # « locataire d'une chambre », « locataire d'un logement ».
+        logement = f"{elision(self.tenant.dwelling)}{self.tenant.dwelling}"
+        texte = (
+            f"Bonjour {prenom},\n\n"
+            f"tu trouveras ci-joint ton attestation de domicile, signée, "
+            f"attestant que tu es locataire {logement} au "
+            f"{self.tenant.address} depuis le {self.lease_start_label}.\n\n"
+            f"{CONSERVATION_DOMICILE}\n\n"
+            f"Bien à toi,\n{landlord_first_name}"
+        )
+        note = CONSERVATION_DOMICILE.removeprefix("📎 ")
+        html = emails.document([
+            emails.entete("Attestation de domicile", self.tenant.full_name),
+            emails.paragraphe(
+                f"Bonjour {prenom},<br/><br/>"
+                f"tu trouveras ci-joint ton attestation de domicile, signée, "
+                f"attestant que tu es locataire {logement} au "
+                f"<b>{self.tenant.address}</b> depuis le "
+                f"<b>{self.lease_start_label}</b>."
+            ),
+            emails.encart("📎", note),
+            emails.signature(f"Bien à toi,<br/>{landlord_first_name}"),
         ])
         return texte, html
 

@@ -23,6 +23,7 @@ from typing import Sequence
 from .config import Config, ConfigError, Tenant
 from .documents import (
     Attestation,
+    AttestationDomicile,
     DocumentError,
     Quittance,
     Relance,
@@ -30,7 +31,11 @@ from .documents import (
 )
 from .formatting import format_amount, iter_months, month_year, parse_amount
 from .mailer import MailError, MailSettings, build_message, send
-from .pdf import render_attestation, render_quittance
+from .pdf import (
+    render_attestation,
+    render_attestation_domicile,
+    render_quittance,
+)
 
 DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y")
 
@@ -456,6 +461,61 @@ def cmd_relance(config: Config, args: argparse.Namespace) -> int:
     return 1 if erreurs else 0
 
 
+def cmd_domicile(config: Config, args: argparse.Namespace) -> int:
+    """Attestation de domicile : justificatif remis au locataire pour un tiers.
+
+    Le document part dans « Docs » et non « Quittances » : ce n'est pas une
+    piece comptable mensuelle mais un justificatif ponctuel.
+    """
+    emise_le = parse_date(args.date) if args.date else date.today()
+    tenants = select_tenants(config, args)
+    racine = Path(args.dossier) if args.dossier else None
+
+    erreurs = 0
+    for tenant in tenants:
+        debut = (
+            parse_date(args.depuis) if args.depuis else tenant.lease_start
+        )
+        if debut is None:
+            erreurs += 1
+            print(
+                f"{tenant.full_name} : date d'entrée dans les lieux inconnue. "
+                f"Renseignez « lease_start » dans config.yaml "
+                f"(tenants.{tenant.key}) ou passez --depuis.",
+                file=sys.stderr,
+            )
+            continue
+
+        attestation = AttestationDomicile(
+            tenant=tenant, lease_start=debut, issued_on=emise_le,
+            motif=args.motif,
+        )
+        chemin = attestation.output_path(racine)
+        print(f"{tenant.full_name} - {chemin}")
+
+        if chemin.exists() and not args.forcer:
+            print("  PDF deja present (utilisez --forcer pour regenerer)")
+        else:
+            render_attestation_domicile(attestation, config, chemin)
+            print("  PDF genere")
+
+        if args.envoyer:
+            try:
+                _deliver(
+                    config,
+                    tenant,
+                    attestation.email_subject,
+                    attestation.email_body(config.landlord.first_name),
+                    chemin,
+                )
+            except MailError as exc:
+                erreurs += 1
+                print(f"  ECHEC de l'envoi : {exc}", file=sys.stderr)
+        else:
+            print("  Email non envoye (ajoutez --envoyer)")
+    return 1 if erreurs else 0
+
+
 def cmd_attestation(config: Config, args: argparse.Namespace) -> int:
     depuis = parse_date(args.depuis)
     emise_le = parse_date(args.date) if args.date else date.today()
@@ -564,6 +624,17 @@ def build_parser() -> argparse.ArgumentParser:
                            help="envoie les rappels (sinon, simple apercu)")
     p_relance.set_defaults(handler=cmd_relance)
 
+    p_domicile = sous.add_parser(
+        "domicile", help="genere une attestation de domicile")
+    _add_common_arguments(p_domicile)
+    p_domicile.add_argument("--depuis", metavar="DATE",
+                            help="entree dans les lieux ; defaut : "
+                                 "« lease_start » du locataire")
+    p_domicile.add_argument("--motif", metavar="TEXTE",
+                            help="usage prevu, ex. « une demande de carte de "
+                                 "transport auprès du réseau Transvilles »")
+    p_domicile.set_defaults(handler=cmd_domicile)
+
     p_attestation = sous.add_parser("attestation", help="genere une attestation")
     _add_common_arguments(p_attestation)
     p_attestation.add_argument("--depuis", required=True, metavar="DATE",
@@ -573,7 +644,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-COMMANDES = ("quittance", "attestation", "locataires", "suivi", "relance")
+COMMANDES = (
+    "quittance", "attestation", "domicile", "locataires", "suivi", "relance",
+)
 
 
 def inject_default_command(argv: Sequence[str]) -> list[str]:
