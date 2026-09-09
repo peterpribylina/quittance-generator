@@ -19,6 +19,7 @@ from .formatting import (
     format_amount,
     format_amount_en,
     format_date,
+    format_date_en,
     month_name,
     month_name_en,
     month_year,
@@ -39,6 +40,19 @@ ECHEANCE = (
 ECHEANCE_EN = (
     "📅 As a reminder, the lease provides that rent is payable in advance, "
     "on the 1st of each month."
+)
+
+# Une quittance sert de justificatif de domicile et de ressources : le locataire
+# a interet a la garder, il la redemande souvent des mois plus tard.
+CONSERVATION = (
+    "📎 La quittance est en pièce jointe. Garde-la : elle sert de justificatif "
+    "de domicile, et te sera demandée pour la CAF, un dossier de garant ou une "
+    "déclaration d'impôts."
+)
+CONSERVATION_EN = (
+    "📎 The receipt is attached. Keep it: it serves as proof of address, and "
+    "you will be asked for it by the CAF, a guarantor application or a tax "
+    "return."
 )
 
 # Suggestion pratique : la plupart des retards viennent d'un oubli, pas d'une
@@ -129,25 +143,78 @@ class Quittance:
         return quittance_path(self.tenant, self.period, root)
 
     @property
+    def period_label_en(self) -> str:
+        """« September 2025 »."""
+        return month_year_en(self.period)
+
+    @property
     def email_subject(self) -> str:
-        return f"Quittance de loyer - {self.period_label}"
+        """Bilingue : la moitie des locataires ne lisent pas le francais."""
+        return (
+            f"Quittance de loyer - {self.period_label} / "
+            f"Rent receipt: {self.period_label_en}"
+        )
 
     def email_body(self, landlord_first_name: str) -> tuple[str, str]:
         """Renvoie (texte brut, HTML)."""
         prenom = self.tenant.first_name
         preposition = elision(self.period_label)
+        detail = (
+            f"{self.rent_label} de loyer + {self.charges_label} de charges"
+            if self.charges
+            else "loyer sans charges"
+        )
+        detail_en = (
+            f"{format_amount_en(self.rent)} rent + "
+            f"{format_amount_en(self.charges)} charges"
+            if self.charges
+            else "rent, no charges"
+        )
+
         texte = (
             f"Bonjour {prenom},\n\n"
-            f"ci-joint la quittance de loyer pour le mois "
-            f"{preposition}{self.period_label}.\n\n"
-            f"Bien a toi,\n{landlord_first_name}"
+            f"ci-joint ta quittance de loyer pour le mois "
+            f"{preposition}{self.period_label}, d'un montant de "
+            f"{self.total_label} ({detail}), reçu le "
+            f"{self.payment_date_label}.\n\n"
+            f"{CONSERVATION}\n\n"
+            f"Bien à toi,\n{landlord_first_name}\n\n"
+            f"{'-' * 40}\n\n"
+            f"Hi {prenom},\n\n"
+            f"please find attached your rent receipt for "
+            f"{self.period_label_en}, for {format_amount_en(self.total)} "
+            f"({detail_en}), received on "
+            f"{format_date_en(self.payment_date)}.\n\n"
+            f"{CONSERVATION_EN}\n\n"
+            f"Best,\n{landlord_first_name}"
         )
-        html = (
-            f"Bonjour {prenom},<br/><br/>"
-            f"ci-joint la quittance de loyer pour le mois "
-            f"{preposition}<b>{self.period_label}</b>.<br/><br/>"
-            f"Bien à toi,<br/>{landlord_first_name}"
-        )
+
+        conservation_fr = CONSERVATION.removeprefix("📎 ")
+        conservation_en = CONSERVATION_EN.removeprefix("📎 ")
+        html = emails.document([
+            emails.entete("Quittance de loyer", self.period_label.capitalize()),
+            emails.montant(
+                "Montant réglé", self.total_label, detail, ton="succes"
+            ),
+            emails.paragraphe(
+                f"Bonjour {prenom},<br/><br/>"
+                f"ci-joint ta quittance de loyer pour le mois "
+                f"{preposition}<b>{self.period_label}</b>, reçu le "
+                f"<b>{self.payment_date_label}</b>."
+            ),
+            emails.encart("📎", conservation_fr),
+            emails.signature(f"Bien à toi,<br/>{landlord_first_name}"),
+            emails.separateur(),
+            emails.langue("English"),
+            emails.paragraphe(
+                f"Hi {prenom},<br/><br/>"
+                f"please find attached your rent receipt for "
+                f"<b>{self.period_label_en}</b>, received on "
+                f"<b>{format_date_en(self.payment_date)}</b>."
+            ),
+            emails.encart("📎", conservation_en),
+            emails.signature(f"Best,<br/>{landlord_first_name}"),
+        ])
         return texte, html
 
 

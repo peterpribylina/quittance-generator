@@ -27,6 +27,14 @@ TRAIT = "#E5E5E7"
 FOND = "#F4F4F5"
 ACCENT = "#BE1E2F"
 ACCENT_PALE = "#FAF6F6"
+SUCCES = "#2E7D5B"
+SUCCES_PALE = "#F3F8F5"
+
+# Un rappel alerte, une quittance confirme : le meme encart change de ton.
+TONS = {
+    "attention": (ACCENT, ACCENT_PALE),
+    "succes": (SUCCES, SUCCES_PALE),
+}
 
 
 def _cellule(contenu: str, padding: str) -> str:
@@ -50,8 +58,11 @@ def entete(etiquette: str, titre: str) -> str:
     )
 
 
-def montant(etiquette: str, valeur: str, detail: str = "") -> str:
+def montant(
+    etiquette: str, valeur: str, detail: str = "", ton: str = "attention"
+) -> str:
     """Encart accentue : le chiffre est ce que le locataire cherche d'abord."""
+    bordure, fond = TONS[ton]
     ligne_detail = (
         f'<div style="font-size:13px;color:{DISCRET};margin-top:4px;">{detail}</div>'
         if detail
@@ -59,7 +70,7 @@ def montant(etiquette: str, valeur: str, detail: str = "") -> str:
     )
     encart = (
         f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" '
-        f'width="100%" style="background:{ACCENT_PALE};border-left:3px solid {ACCENT};'
+        f'width="100%" style="background:{fond};border-left:3px solid {bordure};'
         f'border-radius:0 8px 8px 0;">'
         f'<tr><td style="padding:16px 18px;">'
         + surtitre(etiquette)

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from quittances import emails
 from quittances.config import Config
 from quittances.documents import Attestation, DocumentError, Quittance, Relance
 
@@ -259,3 +260,62 @@ def test_relance_html_sans_montant_omet_l_encart(config: Config) -> None:
     ).email_body("Peter")
     assert "Montant dû" not in html
     assert "septembre 2026" in html
+
+
+def test_quittance_objet_bilingue(config: Config) -> None:
+    quittance = build_quittance(config)
+    assert quittance.email_subject.startswith("Quittance de loyer - septembre 2025")
+    assert "Rent receipt: September 2025" in quittance.email_subject
+
+
+def test_quittance_corps_bilingue(config: Config) -> None:
+    texte, html = build_quittance(config).email_body("Peter")
+    assert texte.index("Bonjour Jingyi") < texte.index("Hi Jingyi")
+    assert html.index("Bonjour Jingyi") < html.index("Hi Jingyi")
+    assert "septembre 2025" in texte and "September 2025" in texte
+    assert "English" in html
+
+
+def test_quittance_date_anglaise_non_ambigue(config: Config) -> None:
+    """03/09 se lirait « 9 mars » outre-Atlantique : le mois est ecrit."""
+    quittance = build_quittance(config, payment_date=date(2025, 9, 3))
+    texte, html = quittance.email_body("Peter")
+    assert "03/09/2025" in texte      # version francaise
+    assert "3 September 2025" in texte
+    assert "3 September 2025" in html
+
+
+def test_quittance_detaille_loyer_et_charges(config: Config) -> None:
+    texte, html = build_quittance(config).email_body("Peter")
+    assert f"390,00{NBSP}€ de loyer + 60,50{NBSP}€ de charges" in texte
+    assert "€390.00 rent + €60.50 charges" in texte
+    assert "Montant réglé" in html
+
+
+def test_quittance_sans_charges(config: Config) -> None:
+    quittance = build_quittance(config, charges=Decimal("0"))
+    texte, _ = quittance.email_body("Peter")
+    assert "loyer sans charges" in texte
+    assert "rent, no charges" in texte
+
+
+def test_quittance_rappelle_de_conserver_le_document(config: Config) -> None:
+    texte, html = build_quittance(config).email_body("Peter")
+    assert "justificatif de domicile" in texte
+    assert "proof of address" in texte
+    assert "📎" in texte
+
+
+def test_quittance_html_respecte_les_contraintes_email(config: Config) -> None:
+    _, html = build_quittance(config).email_body("Peter")
+    assert "max-width:560px" in html
+    assert "<style" not in html
+    assert "class=" not in html
+    assert "http://" not in html and "https://" not in html
+
+
+def test_quittance_encart_montant_en_vert(config: Config) -> None:
+    """Une quittance confirme, elle n'alerte pas : ton « succes »."""
+    _, html = build_quittance(config).email_body("Peter")
+    assert emails.SUCCES in html
+    assert emails.ACCENT not in html

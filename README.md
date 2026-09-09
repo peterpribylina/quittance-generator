@@ -147,6 +147,11 @@ Toutes les maisons d'un coup :
 quittances --tous --envoyer
 ```
 
+L'email accompagnant la quittance est **bilingue et mis en forme** : montant
+réglé en évidence, détail loyer et charges, et un rappel de conserver le
+document — il sert de justificatif de domicile pour la CAF ou un dossier de
+garant.
+
 Voir qui est à jour, mois par mois :
 
 ```bash

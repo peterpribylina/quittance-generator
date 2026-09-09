@@ -95,6 +95,15 @@ def iter_months(debut: date, fin: date) -> list[date]:
     return mois
 
 
+def format_date_en(value: date) -> str:
+    """« 3 September 2026 ».
+
+    Le format numerique francais est ambigu pour un lecteur anglophone :
+    03/09/2026 se lit « 9 mars » aux Etats-Unis. Le mois est donc ecrit.
+    """
+    return f"{value.day} {month_name_en(value.month)} {value.year}"
+
+
 def format_date(value: date) -> str:
     """« 01/09/2025 »."""
     return value.strftime("%d/%m/%Y")

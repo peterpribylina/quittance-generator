@@ -91,14 +91,17 @@ n'émet une quittance qu'une fois payé — le libellé de la commande le dit, n
 le présenter comme un relevé bancaire. Les relevés de `src/data_2025.py`
 s'arrêtent fin 2025 et ne sont pas branchés.
 
-Le corps HTML des relances est assemble par `emails.py`, module de presentation
-sans donnee metier. Les contraintes du format y dictent le code : **styles en
+Les corps HTML des quittances et des relances sont assembles par `emails.py`,
+module de presentation sans donnee metier. `emails.montant` prend un `ton` :
+« succes » (vert) pour une quittance qui confirme, « attention » (rouge) pour
+une relance qui alerte. Les contraintes du format y dictent le code : **styles en
 ligne** (les clients suppriment `<style>`), **tableaux** et non flex ou grid
 (Outlook), aucune police ni image distante, largeur bornee a 560 px. La version
 texte reste la retombee et doit rester lisible seule.
 
-La relance est **bilingue** : la moitie des locataires ne lisent pas le
-francais. Les libelles anglais ont leurs propres conventions
+Quittances et relances sont **bilingues** : la moitie des locataires ne lisent
+pas le francais. Les dates anglaises passent par `format_date_en`, qui ecrit le
+mois en toutes lettres — « 03/09/2026 » se lirait « 9 mars » outre-Atlantique. Les libelles anglais ont leurs propres conventions
 (`month_year_en`, `format_amount_en` qui ecrit « €450.50 » et non
 « 450,50 € »). Les emojis du corps imposent `cli.printable` a l'affichage,
 sinon l'apercu plante en cp1252 comme le faisaient les coches du suivi.
