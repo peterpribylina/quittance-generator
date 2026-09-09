@@ -134,6 +134,9 @@ Son PDF suit une **mise en page de lettre** — bloc bailleur, lieu et date a
 droite, titre centre, corps justifie, signature — et non la grille editoriale
 des quittances : le lecteur est un tiers qui attend une forme conventionnelle.
 
+Son corps est **ferre a gauche** (`CORPS_GAUCHE`), pas justifie : une adresse
+coupee en fin de ligne creusait des lezardes entre les mots.
+
 `Property.dwelling` (« une chambre », « un logement ») s'ecrit toujours precede
 de `elision` : « locataire d'une chambre », jamais « locataire une chambre ».
 

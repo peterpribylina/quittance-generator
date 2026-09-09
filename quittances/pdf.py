@@ -16,7 +16,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from reportlab.lib.colors import HexColor
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
@@ -109,6 +109,9 @@ def _style(nom: str, **surcharges) -> ParagraphStyle:
 
 
 CORPS = _style("corps", fontSize=9.5, leading=15.5, alignment=TA_JUSTIFY)
+# Le fer a gauche evite les lezardes que la justification creuse dans une
+# adresse coupee en fin de ligne.
+CORPS_GAUCHE = _style("corps_gauche", fontSize=9.5, leading=15.5, alignment=TA_LEFT)
 MENTION = _style("mention", fontSize=6.4, leading=9.0, textColor=GRIS_MOYEN,
                  alignment=TA_JUSTIFY)
 
@@ -305,7 +308,9 @@ def render_attestation_domicile(
     )
     haut = 252.0
     for markup in corps:
-        haut += _paragraph(canvas, markup, MARGE, haut, DROITE - MARGE) + 20.0
+        haut += _paragraph(
+            canvas, markup, MARGE, haut, DROITE - MARGE, CORPS_GAUCHE
+        ) + 20.0
 
     _text(
         canvas,
