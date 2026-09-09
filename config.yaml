@@ -6,8 +6,8 @@ landlord:
   last_name: Pribylina
   address_lines:
     - 21 rue Hélène Boucher
-    - 59700 Marcq en Baroeul
-  city: Marcq en Baroeul
+    - 59700 Marcq-en-Barœul
+  city: Marcq-en-Barœul
   email: peter.pribylina@gmail.com
   # Utilises uniquement par l'attestation d'hebergement.
   birth_date: 15 août 1978
@@ -47,6 +47,7 @@ tenants:
     last_name: Rolland
     email: arolland904@gmail.com
     property: anzin
+    lease_start: 2026-09-01
     # 320 et non 340 : accord particulier avec la locataire, qui prime sur le
     # bail. Ne pas « corriger » d'apres le contrat.
     rent: 320.00
@@ -58,6 +59,7 @@ tenants:
     last_name: Aranibar Campero
     email: matildearanibarcampero@gmail.com
     property: anzin
+    lease_start: 2026-09-01
     rent: 340.00
     charges: 70.00
 
@@ -65,6 +67,7 @@ tenants:
     first_name: Elsa
     last_name: Morón
     property: anzin
+    lease_start: 2026-09-01
     rent: 350.00
     charges: 70.00
     title: Mlle
@@ -74,6 +77,7 @@ tenants:
     first_name: Baptiste
     last_name: Dos Santos
     property: anzin
+    lease_start: 2026-09-01
     rent: 340.00
     charges: 70.00
     title: M
@@ -83,6 +87,7 @@ tenants:
     first_name: Aakash
     last_name: Rameshkumar
     property: anzin
+    lease_start: 2026-09-01
     rent: 340.00
     charges: 70.00
     title: M
@@ -96,6 +101,7 @@ tenants:
     last_name: Vanzieleghem
     email: math.vzhm@gmail.com
     property: vals
+    lease_start: 2026-09-01
     rent: 320.00
     charges: 70.00
 
@@ -105,6 +111,7 @@ tenants:
     last_name: Tazhbagambetova
     email: madinaqays@gmail.com
     property: vals
+    lease_start: 2026-09-01
     rent: 340.00
     charges: 70.00
 
@@ -114,6 +121,7 @@ tenants:
     last_name: Fournet
     email: fournethyou2008@gmail.com
     property: vals
+    lease_start: 2026-09-01
     rent: 390.00
     charges: 80.00
 
@@ -121,6 +129,7 @@ tenants:
     first_name: Eliot
     last_name: Fuks
     property: vals
+    lease_start: 2026-09-01
     rent: 350.00
     charges: 70.00
     title: M
@@ -130,6 +139,7 @@ tenants:
     first_name: Mathias
     last_name: Pacheco
     property: vals
+    lease_start: 2026-09-01
     rent: 340.00
     # 90 et non 70 comme les autres : vehicule electrique recharge sur place,
     # donc consommation electrique superieure.
