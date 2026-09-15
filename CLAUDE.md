@@ -119,6 +119,22 @@ Les marqueurs `✓`/`·` passent par `cli.markers()`, qui retombe sur `X`/`.`
 quand `sys.stdout` ne sait pas les encoder : une redirection Windows repasse en
 cp1252 et ferait planter la commande.
 
+## Suivi des assurances
+
+`quittances assurance` ne suit **aucune echeance** : il liste les fichiers de
+`Docs` dont le nom contient « assurance » (`documents.fichiers_assurance`),
+sans regarder leur contenu ni leur date de validite. Le critere est volontairement
+large — les locataires deposent aussi bien un PDF qu'une photo `.jpeg`.
+
+`--relancer` cible exactement ceux qui n'ont aucun fichier. Le message
+`RelanceAssurance` est bilingue et **ne joint rien** : il reclame un document,
+il n'en transmet pas.
+
+`Property.dwelling` s'ecrit **sans** elision apres « pour » (« pour une
+chambre ») et **avec** apres « locataire » (« locataire d'une chambre »). Le
+bloc anglais dit « the property », neutre, la ou « the room » serait faux pour
+Lille.
+
 ## Attestation de domicile
 
 `AttestationDomicile` n'est pas `Attestation` : la premiere certifie qu'un

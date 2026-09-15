@@ -27,6 +27,8 @@ from .documents import (
     DocumentError,
     Quittance,
     Relance,
+    RelanceAssurance,
+    fichiers_assurance,
     quittance_path,
 )
 from .formatting import format_amount, iter_months, month_year, parse_amount
@@ -461,6 +463,92 @@ def cmd_relance(config: Config, args: argparse.Namespace) -> int:
     return 1 if erreurs else 0
 
 
+def cmd_assurance(config: Config, args: argparse.Namespace) -> int:
+    """Qui a depose son attestation d'assurance dans « Docs », qui ne l'a pas.
+
+    Aucune date d'echeance n'est suivie : le critere est la seule presence d'un
+    fichier contenant « assurance ». Avec --relancer, ceux qui n'en ont pas
+    recoivent un rappel.
+    """
+    racine = Path(args.dossier) if args.dossier else None
+    tenants = (
+        select_tenants(config, args)
+        if (args.locataire or args.maison or args.tous)
+        else list(config.tenants.values())
+    )
+    recue, manquante, _ = markers()
+
+    lignes = [(tenant, fichiers_assurance(tenant, racine)) for tenant in tenants]
+    absents = [tenant for tenant, fichiers in lignes if not fichiers]
+
+    if args.relancer:
+        return _relancer_assurance(config, absents, args)
+
+    print("Attestations d'assurance deposees dans « Docs »\n")
+    if not lignes:
+        print("Aucun locataire a afficher.")
+        return 0
+
+    largeur = max(len(ligne[0].short_name) for ligne in lignes)
+    print(f"{'LOCATAIRE'.ljust(largeur)}  {'MAISON'.ljust(7)}  REÇUE  FICHIER")
+    for tenant, fichiers in lignes:
+        if fichiers:
+            recent = fichiers[0]
+            depose = date.fromtimestamp(recent.stat().st_mtime)
+            detail = f"{recent.name}  ({depose:%d/%m/%Y})"
+            if len(fichiers) > 1:
+                detail += f"  +{len(fichiers) - 1}"
+        else:
+            detail = "-"
+        print(
+            f"{tenant.short_name.ljust(largeur)}  "
+            f"{tenant.property.key.ljust(7)}  "
+            f"{(recue if fichiers else manquante).center(5)}  {detail}"
+        )
+
+    print(
+        f"\n{len(lignes) - len(absents)} reçues, {len(absents)} manquantes"
+        + (" (--relancer pour les rappeler)" if absents else "")
+    )
+    return 0
+
+
+def _relancer_assurance(
+    config: Config, absents: list[Tenant], args: argparse.Namespace
+) -> int:
+    if not absents:
+        print("Toutes les attestations sont deposees : personne a relancer.")
+        return 0
+
+    if args.envoyer and len(absents) > 1:
+        noms = ", ".join(t.full_name for t in absents)
+        if not _confirm(f"Relancer {len(absents)} locataires ({noms}) ?"):
+            raise CliError("Envoi annule.")
+
+    erreurs = 0
+    for tenant in absents:
+        relance = RelanceAssurance(tenant=tenant)
+        destinataires = ", ".join(tenant.emails) or "(aucune adresse)"
+        print(f"{tenant.full_name} <{destinataires}>")
+        print(printable(f"  Objet : {relance.email_subject}"))
+        if not args.envoyer:
+            texte, _ = relance.email_body(config.landlord.first_name)
+            for ligne in texte.splitlines():
+                print(printable(f"  | {ligne}") if ligne else "  |")
+            print("  Email non envoye (ajoutez --envoyer)\n")
+            continue
+        try:
+            _deliver(
+                config, tenant, relance.email_subject,
+                relance.email_body(config.landlord.first_name),
+            )
+        except MailError as exc:
+            erreurs += 1
+            print(f"  ECHEC de l'envoi : {exc}", file=sys.stderr)
+        print()
+    return 1 if erreurs else 0
+
+
 def cmd_domicile(config: Config, args: argparse.Namespace) -> int:
     """Attestation de domicile : justificatif remis au locataire pour un tiers.
 
@@ -624,6 +712,18 @@ def build_parser() -> argparse.ArgumentParser:
                            help="envoie les rappels (sinon, simple apercu)")
     p_relance.set_defaults(handler=cmd_relance)
 
+    p_assurance = sous.add_parser(
+        "assurance", help="qui a depose son attestation d'assurance")
+    p_assurance.add_argument("--locataire", action="append", metavar="CLE")
+    p_assurance.add_argument("--tous", action="store_true")
+    p_assurance.add_argument("--maison", metavar="CLE")
+    p_assurance.add_argument("--dossier", metavar="CHEMIN")
+    p_assurance.add_argument("--relancer", action="store_true",
+                             help="rappelle ceux qui n'ont rien depose")
+    p_assurance.add_argument("--envoyer", action="store_true",
+                             help="envoie les rappels (avec --relancer)")
+    p_assurance.set_defaults(handler=cmd_assurance)
+
     p_domicile = sous.add_parser(
         "domicile", help="genere une attestation de domicile")
     _add_common_arguments(p_domicile)
@@ -646,6 +746,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 COMMANDES = (
     "quittance", "attestation", "domicile", "locataires", "suivi", "relance",
+    "assurance",
 )
 
 

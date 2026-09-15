@@ -198,6 +198,37 @@ en évidence, échéance du bail et suggestion de virement programmé en encarts
 version texte accompagne toujours la version HTML, pour les clients qui ne
 l'affichent pas.
 
+Voir qui a déposé son attestation d'assurance :
+
+```bash
+quittances assurance
+```
+
+```
+LOCATAIRE    MAISON   REÇUE  FICHIER
+Alice R.     anzin      ·    -
+Baptiste D.  anzin      ✓    assurance_2026-27.pdf  (03/09/2026)
+Mathias P.   vals       ✓    assurance_2026-27.jpeg  (05/09/2026)
+
+5 reçues, 5 manquantes (--relancer pour les rappeler)
+```
+
+Le critère est le nom du fichier : **tout fichier de `Docs` contenant
+« assurance »** compte, quelle que soit son extension — les locataires envoient
+aussi bien un PDF qu'une photo. Aucune échéance n'est suivie, seulement la
+présence du document.
+
+Relancer ceux qui n'ont rien déposé :
+
+```bash
+quittances assurance --relancer
+```
+
+Le message demande l'attestation de risques locatifs, rappelle que le bail
+l'impose chaque année, et suggère de la demander à son assureur. Il est
+**bilingue et mis en forme**, et ne joint aucun document — il en réclame un.
+Comme ailleurs, rien ne part sans `--envoyer`.
+
 Lister les locataires configurés :
 
 ```bash

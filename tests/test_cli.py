@@ -632,3 +632,78 @@ class TestDomicile:
         assert message["Subject"] == "Attestation de domicile"
         pieces = [p.get_filename() for p in message.iter_attachments()]
         assert pieces and pieces[0].startswith("Attestation_domicile_")
+
+
+class TestAssurance:
+    """Suivi des attestations d'assurance deposees dans « Docs »."""
+
+    def _deposer(self, config_file: Path, racine: Path, slug: str, nom: str) -> None:
+        dossier = racine / slug / "Docs"
+        dossier.mkdir(parents=True, exist_ok=True)
+        (dossier / nom).write_bytes(b"x")
+
+    def test_tableau_recues_et_manquantes(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        self._deposer(config_file, tmp_path, "Jingyi_Luo", "assurance_2026-27.pdf")
+
+        assert run(config_file, "assurance", "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        assert "assurance_2026-27.pdf" in sortie
+        assert "1 reçues, 2 manquantes" in sortie
+        assert "--relancer" in sortie
+
+    def test_relance_ne_vise_que_les_manquants(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        self._deposer(config_file, tmp_path, "Jingyi_Luo", "assurance.jpeg")
+
+        assert run(config_file, "assurance", "--relancer",
+                   "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        assert "Jingyi Luo" not in sortie              # a depose
+        assert "Matilde Aranibar Campero" in sortie    # n'a rien depose
+        assert "Email non envoye" in sortie
+
+    def test_aucun_envoi_sans_option(
+        self, config_file: Path, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            cli, "send", lambda *a, **k: pytest.fail("aucun envoi sans --envoyer")
+        )
+        assert run(config_file, "assurance", "--relancer",
+                   "--dossier", str(tmp_path)) == 0
+
+    def test_envoi_sans_piece_jointe(
+        self, config_file: Path, tmp_path: Path, monkeypatch
+    ) -> None:
+        """La relance demande un document, elle n'en joint aucun."""
+        envoyes = []
+        monkeypatch.setenv("SMTP_USER", "bailleur@example.com")
+        monkeypatch.setenv("SMTP_PASSWORD", "secret")
+        monkeypatch.setattr(cli, "send", lambda s, m: envoyes.append(m))
+
+        assert run(config_file, "assurance", "--locataire", "Jin", "--relancer",
+                   "--dossier", str(tmp_path), "--envoyer") == 0
+        assert len(envoyes) == 1
+        assert list(envoyes[0].iter_attachments()) == []
+        assert "Home insurance certificate" in envoyes[0]["Subject"]
+
+    def test_tout_le_monde_a_jour(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        for slug in ("Jingyi_Luo", "Matilde_Aranibar_Campero", "XinXuan_Li"):
+            self._deposer(config_file, tmp_path, slug, "assurance.pdf")
+
+        assert run(config_file, "assurance", "--relancer",
+                   "--dossier", str(tmp_path)) == 0
+        assert "personne a relancer" in capsys.readouterr().out
+
+    def test_filtre_par_maison(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        assert run(config_file, "assurance", "--maison", "vals",
+                   "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        assert "XinXuan L." in sortie
+        assert "Jingyi L." not in sortie

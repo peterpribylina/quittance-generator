@@ -14,6 +14,8 @@ from quittances.documents import (
     DocumentError,
     Quittance,
     Relance,
+    RelanceAssurance,
+    fichiers_assurance,
 )
 
 NBSP = "\u00a0"  # espace insecable, cf. formatting.format_amount
@@ -402,3 +404,88 @@ def test_domicile_logement_selon_le_bien(raw_config: dict, tmp_path: Path) -> No
     config = Config.from_dict(raw_config, base_dir=tmp_path)
     texte, _ = build_domicile(config).email_body("Peter")
     assert "locataire d'un logement" in texte
+
+
+def creer_docs(config: Config, racine: Path, cle: str, *noms: str) -> Path:
+    dossier = racine / config.tenant(cle).slug / "Docs"
+    dossier.mkdir(parents=True, exist_ok=True)
+    for nom in noms:
+        (dossier / nom).write_bytes(b"x")
+    return dossier
+
+
+def test_assurance_detecte_le_mot_cle(config: Config, tmp_path: Path) -> None:
+    creer_docs(config, tmp_path, "Jin", "assurance_2026-27.pdf", "bail.pdf")
+    trouves = fichiers_assurance(config.tenant("Jin"), tmp_path)
+    assert [f.name for f in trouves] == ["assurance_2026-27.pdf"]
+
+
+def test_assurance_accepte_toute_extension(config: Config, tmp_path: Path) -> None:
+    """Les locataires envoient aussi bien un PDF qu'une photo."""
+    creer_docs(config, tmp_path, "Jin", "assurance_2026-27.jpeg")
+    assert len(fichiers_assurance(config.tenant("Jin"), tmp_path)) == 1
+
+
+def test_assurance_insensible_a_la_casse(config: Config, tmp_path: Path) -> None:
+    creer_docs(
+        config, tmp_path, "Jin",
+        "Attestation d'ASSURANCE responsabilité locative.pdf",
+    )
+    assert len(fichiers_assurance(config.tenant("Jin"), tmp_path)) == 1
+
+
+def test_assurance_ignore_les_autres_documents(config: Config, tmp_path: Path) -> None:
+    creer_docs(config, tmp_path, "Jin", "bail.pdf", "Fiche locataire.pdf")
+    assert fichiers_assurance(config.tenant("Jin"), tmp_path) == []
+
+
+def test_assurance_sans_dossier_docs(config: Config, tmp_path: Path) -> None:
+    """Un locataire sans dossier « Docs » ne fait pas planter le suivi."""
+    assert fichiers_assurance(config.tenant("Jin"), tmp_path) == []
+
+
+def test_assurance_plus_recent_en_premier(config: Config, tmp_path: Path) -> None:
+    import os
+    import time
+
+    dossier = creer_docs(
+        config, tmp_path, "Jin", "assurance_2025-26.pdf", "assurance_2026-27.pdf"
+    )
+    ancien = dossier / "assurance_2025-26.pdf"
+    os.utime(ancien, (time.time() - 86400, time.time() - 86400))
+    trouves = fichiers_assurance(config.tenant("Jin"), tmp_path)
+    assert trouves[0].name == "assurance_2026-27.pdf"
+
+
+def test_relance_assurance_bilingue(config: Config) -> None:
+    relance = RelanceAssurance(tenant=config.tenant("Jin"))
+    texte, html = relance.email_body("Peter")
+    assert "Home insurance certificate" in relance.email_subject
+    assert texte.index("Bonjour Jingyi") < texte.index("Hi Jingyi")
+    assert html.index("Bonjour Jingyi") < html.index("Hi Jingyi")
+    assert "English" in html
+
+
+def test_relance_assurance_accorde_le_logement(config: Config) -> None:
+    """« pour une chambre », et non « pour d'une chambre »."""
+    texte, _ = RelanceAssurance(tenant=config.tenant("Jin")).email_body("Peter")
+    assert "pour une chambre au" in texte
+    assert "pour d'une chambre" not in texte
+
+
+def test_relance_assurance_anglais_neutre_sur_le_logement(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    """« the property » vaut pour une chambre comme pour un logement entier."""
+    raw_config["properties"]["anzin"]["dwelling"] = "un logement"
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    texte, _ = RelanceAssurance(tenant=config.tenant("Jin")).email_body("Peter")
+    assert "for the property at" in texte
+    assert "for the room at" not in texte
+
+
+def test_relance_assurance_html_respecte_les_contraintes(config: Config) -> None:
+    _, html = RelanceAssurance(tenant=config.tenant("Jin")).email_body("Peter")
+    assert "max-width:560px" in html
+    assert "<style" not in html and "class=" not in html
+    assert "http://" not in html and "https://" not in html

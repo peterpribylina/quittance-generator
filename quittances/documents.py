@@ -56,6 +56,25 @@ CONSERVATION_EN = (
     "return."
 )
 
+# L'assurance des risques locatifs est une obligation legale du locataire
+# (loi du 6 juillet 1989), dont l'attestation se fournit chaque annee.
+OBLIGATION_ASSURANCE = (
+    "📅 Le bail impose une assurance couvrant les risques locatifs, et "
+    "l'attestation doit m'être remise chaque année."
+)
+OBLIGATION_ASSURANCE_EN = (
+    "📅 The lease requires insurance covering tenant risks, and the "
+    "certificate must be provided to me every year."
+)
+ASTUCE_ASSURANCE = (
+    "💡 Astuce : ton assureur peut te l'envoyer en quelques minutes depuis ton "
+    "espace client ou par téléphone."
+)
+ASTUCE_ASSURANCE_EN = (
+    "💡 Tip: your insurer can usually send it within minutes from your online "
+    "account or over the phone."
+)
+
 CONSERVATION_DOMICILE = (
     "📎 Le document est en pièce jointe, signé. Il est daté du jour : si on te "
     "le demande dans plusieurs mois, redemande-le-moi plutôt que de renvoyer "
@@ -225,6 +244,111 @@ class Quittance:
         return texte, html
 
 
+MOT_CLE_ASSURANCE = "assurance"
+
+
+def docs_dir(tenant: Tenant, root: Path | None = None) -> Path:
+    """<dossier du bien>/<Prenom_Nom>/Docs."""
+    base = Path(root) if root is not None else tenant.property.folder
+    return base / tenant.slug / "Docs"
+
+
+def fichiers_assurance(tenant: Tenant, root: Path | None = None) -> list[Path]:
+    """Attestations d'assurance deposees dans « Docs », du plus recent au plus ancien.
+
+    Le critere est le nom du fichier : tout fichier de « Docs » contenant
+    « assurance » compte, quelle que soit son extension. Les locataires
+    envoient aussi bien un PDF qu'une photo de leur attestation.
+    """
+    dossier = docs_dir(tenant, root)
+    if not dossier.is_dir():
+        return []
+    trouves = [
+        fichier
+        for fichier in dossier.iterdir()
+        if fichier.is_file() and MOT_CLE_ASSURANCE in fichier.name.casefold()
+    ]
+    return sorted(trouves, key=lambda f: f.stat().st_mtime, reverse=True)
+
+
+@dataclass(frozen=True)
+class RelanceAssurance:
+    """Rappel demandant l'attestation d'assurance des risques locatifs.
+
+    Bilingue : cette demande s'adresse au locataire, pas a une administration,
+    et la moitie d'entre eux ne lisent pas le francais.
+    """
+
+    tenant: Tenant
+
+    @property
+    def email_subject(self) -> str:
+        return (
+            "Attestation d'assurance habitation / Home insurance certificate"
+        )
+
+    def email_body(self, landlord_first_name: str) -> tuple[str, str]:
+        prenom = self.tenant.first_name
+        # Pas d'elision ici : « pour une chambre », et non « pour d'une
+        # chambre ». Elle ne vaut qu'apres « locataire ».
+        logement = self.tenant.dwelling
+
+        texte = (
+            f"Bonjour {prenom},\n\n"
+            f"je n'ai pas encore reçu ton attestation d'assurance habitation "
+            f"(attestation de risques locatifs) pour {logement} au "
+            f"{self.tenant.address}.\n\n"
+            f"{OBLIGATION_ASSURANCE}\n\n"
+            f"{ASTUCE_ASSURANCE}\n\n"
+            "Peux-tu me la transmettre en réponse à ce message ? Un PDF ou une "
+            "photo lisible suffit.\n\n"
+            f"Bien à toi,\n{landlord_first_name}\n\n"
+            f"{'-' * 40}\n\n"
+            f"Hi {prenom},\n\n"
+            f"I haven't received your home insurance certificate "
+            f"(\"attestation de risques locatifs\") yet, for the property at "
+            f"{self.tenant.address}.\n\n"
+            f"{OBLIGATION_ASSURANCE_EN}\n\n"
+            f"{ASTUCE_ASSURANCE_EN}\n\n"
+            "Could you send it back in reply to this message? A PDF or a clear "
+            "photo is enough.\n\n"
+            f"Best,\n{landlord_first_name}"
+        )
+
+        html = emails.document([
+            emails.entete("Document manquant", "Attestation de risques locatifs"),
+            emails.paragraphe(
+                f"Bonjour {prenom},<br/><br/>"
+                f"je n'ai pas encore reçu ton attestation d'assurance "
+                f"habitation (attestation de risques locatifs) pour "
+                f"{logement} au <b>{self.tenant.address}</b>."
+            ),
+            emails.encart("📅", OBLIGATION_ASSURANCE.removeprefix("📅 ")),
+            emails.encart("💡", ASTUCE_ASSURANCE.removeprefix("💡 ")),
+            emails.paragraphe(
+                "Peux-tu me la transmettre en réponse à ce message ? Un PDF ou "
+                "une photo lisible suffit."
+            ),
+            emails.signature(f"Bien à toi,<br/>{landlord_first_name}"),
+            emails.separateur(),
+            emails.langue("English"),
+            emails.paragraphe(
+                f"Hi {prenom},<br/><br/>"
+                f"I haven't received your home insurance certificate "
+                f"(&laquo;&nbsp;attestation de risques locatifs&nbsp;&raquo;) "
+                f"yet, for the property at <b>{self.tenant.address}</b>."
+            ),
+            emails.encart("📅", OBLIGATION_ASSURANCE_EN.removeprefix("📅 ")),
+            emails.encart("💡", ASTUCE_ASSURANCE_EN.removeprefix("💡 ")),
+            emails.paragraphe(
+                "Could you send it back in reply to this message? A PDF or a "
+                "clear photo is enough."
+            ),
+            emails.signature(f"Best,<br/>{landlord_first_name}"),
+        ])
+        return texte, html
+
+
 @dataclass(frozen=True)
 class AttestationDomicile:
     """Attestation de domicile : le bailleur atteste qu'untel est son locataire.
@@ -273,8 +397,7 @@ class AttestationDomicile:
 
     def output_path(self, root: Path | None = None) -> Path:
         """<dossier du bien>/<Prenom_Nom>/Docs/<fichier>."""
-        base = Path(root) if root is not None else self.tenant.property.folder
-        return base / self.tenant.slug / "Docs" / self.filename
+        return docs_dir(self.tenant, root) / self.filename
 
     @property
     def email_subject(self) -> str:
@@ -523,8 +646,7 @@ class Attestation:
 
     def output_path(self, root: Path | None = None) -> Path:
         """<dossier du bien>/<Prenom_Nom>/Docs/<fichier>."""
-        base = Path(root) if root is not None else self.tenant.property.folder
-        return base / self.tenant.slug / "Docs" / self.filename
+        return docs_dir(self.tenant, root) / self.filename
 
     @property
     def email_subject(self) -> str:
