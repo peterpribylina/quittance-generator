@@ -707,3 +707,107 @@ class TestAssurance:
         sortie = capsys.readouterr().out
         assert "XinXuan L." in sortie
         assert "Jingyi L." not in sortie
+
+
+class TestCaution:
+    """Recu de depot de garantie : production, envoi et suivi."""
+
+    def test_generation_dans_docs(self, config_file: Path, tmp_path: Path) -> None:
+        code = run(config_file, "caution", "--locataire", "Jin",
+                   "--recu-le", "2026-08-28", "--dossier", str(tmp_path))
+        assert code == 0
+        pdfs = list(tmp_path.rglob("Docs/*.pdf"))
+        assert [p.name for p in pdfs] == ["Recu_depot_de_garantie_Jingyi_LUO.pdf"]
+        assert not list(tmp_path.rglob("Quittances/*.pdf"))
+
+    def test_montant_par_defaut(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Deux mois de loyer hors charges : 390 x 2, sans les 60,50 de charges."""
+        run(config_file, "caution", "--locataire", "Jin", "--recu-le",
+            "2026-08-28", "--dossier", str(tmp_path))
+        sortie = capsys.readouterr().out
+        assert "780,00" in sortie
+        assert "901,00" not in sortie      # ce serait charges comprises
+
+    def test_montant_force(self, config_file: Path, tmp_path: Path, capsys) -> None:
+        run(config_file, "caution", "--locataire", "Jin", "--recu-le",
+            "2026-08-28", "--montant", "500", "--dossier", str(tmp_path))
+        assert "500,00" in capsys.readouterr().out
+
+    def test_date_de_versement_reprise_du_bail(
+        self, config_file: Path, tmp_path: Path
+    ) -> None:
+        import yaml
+
+        brut = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+        brut["tenants"]["Jin"]["lease_start"] = "2026-09-01"
+        config_file.write_text(
+            yaml.safe_dump(brut, allow_unicode=True, sort_keys=False), encoding="utf-8"
+        )
+        assert run(config_file, "caution", "--locataire", "Jin",
+                   "--dossier", str(tmp_path)) == 0
+        assert list(tmp_path.rglob("Docs/*.pdf"))
+
+    def test_date_de_versement_manquante(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        code = run(config_file, "caution", "--locataire", "Jin",
+                   "--dossier", str(tmp_path))
+        assert code == 1
+        assert "--recu-le" in capsys.readouterr().err
+
+    def test_loyer_manquant_n_interrompt_pas_le_lot(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        code = run(config_file, "caution", "--maison", "vals", "--recu-le",
+                   "2026-08-28", "--dossier", str(tmp_path))
+        assert code == 1                                   # Xin n'a pas de loyer
+        assert "rent" in capsys.readouterr().err
+
+    def test_aucun_envoi_sans_option(
+        self, config_file: Path, tmp_path: Path, capsys, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            cli, "send", lambda *a, **k: pytest.fail("aucun envoi sans --envoyer")
+        )
+        assert run(config_file, "caution", "--locataire", "Jin", "--recu-le",
+                   "2026-08-28", "--dossier", str(tmp_path)) == 0
+        assert "Email non envoye" in capsys.readouterr().out
+
+    def test_envoi_joint_le_recu(
+        self, config_file: Path, tmp_path: Path, monkeypatch
+    ) -> None:
+        envoyes = []
+        monkeypatch.setenv("SMTP_USER", "bailleur@example.com")
+        monkeypatch.setenv("SMTP_PASSWORD", "secret")
+        monkeypatch.setattr(cli, "send", lambda s, m: envoyes.append(m))
+
+        assert run(config_file, "caution", "--locataire", "Jin", "--recu-le",
+                   "2026-08-28", "--dossier", str(tmp_path), "--envoyer") == 0
+        message = envoyes[0]
+        assert message["Subject"] == "Reçu de dépôt de garantie"
+        pieces = [p.get_filename() for p in message.iter_attachments()]
+        assert pieces == ["Recu_depot_de_garantie_Jingyi_LUO.pdf"]
+
+    def test_suivi(self, config_file: Path, tmp_path: Path, capsys) -> None:
+        dossier = tmp_path / "Jingyi_Luo" / "Docs"
+        dossier.mkdir(parents=True)
+        (dossier / "Reçu dépôt de garantie - Jingyi LUO.pdf").write_bytes(b"x")
+
+        assert run(config_file, "caution", "--suivi", "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        assert "780,00" in sortie              # montant attendu affiche
+        assert "1 reçu, 2 manquants" in sortie
+
+    def test_suivi_ne_produit_rien(
+        self, config_file: Path, tmp_path: Path
+    ) -> None:
+        assert run(config_file, "caution", "--suivi", "--dossier", str(tmp_path)) == 0
+        assert not list(tmp_path.rglob("*.pdf"))
+
+    def test_cible_obligatoire_hors_suivi(
+        self, config_file: Path, capsys
+    ) -> None:
+        assert run(config_file, "caution", "--recu-le", "2026-08-28") == 1
+        assert "--suivi" in capsys.readouterr().err

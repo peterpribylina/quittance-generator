@@ -95,6 +95,80 @@ def iter_months(debut: date, fin: date) -> list[date]:
     return mois
 
 
+UNITES = (
+    "zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit",
+    "neuf", "dix", "onze", "douze", "treize", "quatorze", "quinze", "seize",
+)
+DIZAINES = {
+    20: "vingt", 30: "trente", 40: "quarante", 50: "cinquante",
+    60: "soixante", 80: "quatre-vingt",
+}
+
+
+def _moins_de_cent(n: int) -> str:
+    if n < 17:
+        return UNITES[n]
+    if n < 20:
+        return f"dix-{UNITES[n - 10]}"
+    # 70 et 90 se disent « soixante-dix » et « quatre-vingt-dix » : la dizaine
+    # de base est celle du dessous, l'unite va jusqu'a 19.
+    base = 60 if 70 <= n < 80 else 80 if n >= 80 else n // 10 * 10
+    reste = n - base
+    if reste == 0:
+        return DIZAINES[base]
+    if reste == 1 and base in (20, 30, 40, 50, 60):
+        return f"{DIZAINES[base]} et un"
+    if reste == 11 and base == 60:
+        return "soixante et onze"
+    return f"{DIZAINES[base]}-{_moins_de_cent(reste)}"
+
+
+def _moins_de_mille(n: int) -> str:
+    centaines, reste = divmod(n, 100)
+    if centaines == 0:
+        return _moins_de_cent(reste)
+    # « cent » prend un s quand il est multiplie et termine le nombre.
+    tete = "cent" if centaines == 1 else f"{UNITES[centaines]} cent"
+    if reste == 0:
+        return tete + ("s" if centaines > 1 else "")
+    return f"{tete} {_moins_de_cent(reste)}"
+
+
+def nombre_en_lettres(n: int) -> str:
+    """« 680 » -> « six cent quatre-vingts ».
+
+    Orthographe francaise standard : « quatre-vingts » et « deux cents »
+    prennent un s seulement en fin de nombre, « mille » est invariable.
+    """
+    if n < 0:
+        raise ValueError(f"Nombre negatif : {n}")
+    if n >= 1_000_000:
+        raise ValueError(f"Nombre trop grand : {n}")
+    if n < 1000:
+        mots = _moins_de_mille(n)
+    else:
+        milliers, reste = divmod(n, 1000)
+        tete = "mille" if milliers == 1 else f"{_moins_de_mille(milliers)} mille"
+        mots = tete if reste == 0 else f"{tete} {_moins_de_mille(reste)}"
+    # « quatre-vingt » s'accorde en fin de nombre, jamais au milieu.
+    if mots.endswith("quatre-vingt"):
+        mots += "s"
+    return mots
+
+
+def montant_en_lettres(value: Decimal) -> str:
+    """« 680,00 » -> « six cent quatre-vingts euros »."""
+    quantized = value.quantize(Decimal("0.01"))
+    euros, centimes = divmod(int(quantized * 100), 100)
+    libelle = f"{nombre_en_lettres(euros)} euro{'s' if euros > 1 else ''}"
+    if centimes:
+        libelle += (
+            f" et {nombre_en_lettres(centimes)} "
+            f"centime{'s' if centimes > 1 else ''}"
+        )
+    return libelle
+
+
 def format_date_long(value: date) -> str:
     """« 1er septembre 2026 », « 31 août 2026 ».
 

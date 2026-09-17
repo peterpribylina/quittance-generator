@@ -24,17 +24,20 @@ from .config import Config, ConfigError, Tenant
 from .documents import (
     Attestation,
     AttestationDomicile,
+    DepotGarantie,
     DocumentError,
     Quittance,
     Relance,
     RelanceAssurance,
     fichiers_assurance,
+    fichiers_depot_garantie,
     quittance_path,
 )
 from .formatting import format_amount, iter_months, month_year, parse_amount
 from .mailer import MailError, MailSettings, build_message, send
 from .pdf import (
     render_attestation,
+    render_depot_garantie,
     render_attestation_domicile,
     render_quittance,
 )
@@ -463,6 +466,112 @@ def cmd_relance(config: Config, args: argparse.Namespace) -> int:
     return 1 if erreurs else 0
 
 
+def cmd_caution(config: Config, args: argparse.Namespace) -> int:
+    """Recu de depot de garantie : production, envoi, et suivi avec --suivi.
+
+    Le depot vaut deux mois de loyer hors charges. Le recu sort dans « Docs »,
+    comme l'attestation de domicile : ce n'est pas une piece mensuelle.
+    """
+    racine = Path(args.dossier) if args.dossier else None
+    tenants = (
+        select_tenants(config, args)
+        if (args.locataire or args.maison or args.tous)
+        else list(config.tenants.values())
+    )
+
+    if args.suivi:
+        return _suivi_caution(tenants, racine)
+
+    if not (args.locataire or args.maison or args.tous):
+        raise CliError(
+            "Precisez --locataire NOM, --maison CLE ou --tous "
+            "(ou --suivi pour l'etat des lieux)."
+        )
+
+    emise_le = parse_date(args.date) if args.date else date.today()
+    erreurs = 0
+    for tenant in tenants:
+        recu_le = parse_date(args.recu_le) if args.recu_le else tenant.lease_start
+        if recu_le is None:
+            erreurs += 1
+            print(
+                f"{tenant.full_name} : date de versement inconnue. Passez "
+                f"--recu-le, ou renseignez « lease_start » dans config.yaml "
+                f"(tenants.{tenant.key}).",
+                file=sys.stderr,
+            )
+            continue
+        try:
+            montant = args.montant or DepotGarantie.montant_attendu(tenant)
+            depot = DepotGarantie(
+                tenant=tenant, amount=montant, received_on=recu_le,
+                issued_on=emise_le,
+                first_month=tenant.lease_start or recu_le,
+            )
+        except DocumentError as exc:
+            erreurs += 1
+            print(f"{tenant.full_name} : {exc}", file=sys.stderr)
+            continue
+
+        chemin = depot.output_path(racine)
+        print(f"{tenant.full_name} - {depot.amount_label} - {chemin}")
+
+        if chemin.exists() and not args.forcer:
+            print("  PDF deja present (utilisez --forcer pour regenerer)")
+        else:
+            render_depot_garantie(depot, config, chemin)
+            print("  PDF genere")
+
+        if args.envoyer:
+            try:
+                _deliver(
+                    config, tenant, depot.email_subject,
+                    depot.email_body(config.landlord.first_name), chemin,
+                )
+            except MailError as exc:
+                erreurs += 1
+                print(f"  ECHEC de l'envoi : {exc}", file=sys.stderr)
+        else:
+            print("  Email non envoye (ajoutez --envoyer)")
+    return 1 if erreurs else 0
+
+
+def _suivi_caution(tenants: list[Tenant], racine: Path | None) -> int:
+    """Qui a un recu de depot dans « Docs », qui n'en a pas."""
+    recu, manquant, _ = markers()
+    lignes = [(t, fichiers_depot_garantie(t, racine)) for t in tenants]
+    if not lignes:
+        print("Aucun locataire a afficher.")
+        return 0
+
+    print("Recus de depot de garantie presents dans « Docs »\n")
+    largeur = max(len(ligne[0].short_name) for ligne in lignes)
+    print(f"{'LOCATAIRE'.ljust(largeur)}  {'MAISON'.ljust(7)}  REÇU   ATTENDU   FICHIER")
+    absents = 0
+    for tenant, fichiers in lignes:
+        try:
+            attendu = format_amount(DepotGarantie.montant_attendu(tenant))
+        except DocumentError:
+            attendu = "-"
+        if fichiers:
+            detail = fichiers[0].name
+        else:
+            detail = "-"
+            absents += 1
+        print(
+            f"{tenant.short_name.ljust(largeur)}  "
+            f"{tenant.property.key.ljust(7)}  "
+            f"{(recu if fichiers else manquant).center(5)}  "
+            f"{attendu.rjust(9)}   {detail}"
+        )
+    presents = len(lignes) - absents
+    print(
+        f"\n{presents} reçu{'s' if presents > 1 else ''}, "
+        f"{absents} manquant{'s' if absents > 1 else ''}"
+    )
+    return 0
+
+
 def cmd_assurance(config: Config, args: argparse.Namespace) -> int:
     """Qui a depose son attestation d'assurance dans « Docs », qui ne l'a pas.
 
@@ -712,6 +821,17 @@ def build_parser() -> argparse.ArgumentParser:
                            help="envoie les rappels (sinon, simple apercu)")
     p_relance.set_defaults(handler=cmd_relance)
 
+    p_caution = sous.add_parser(
+        "caution", help="recu de depot de garantie, et son suivi")
+    _add_common_arguments(p_caution)
+    p_caution.add_argument("--suivi", action="store_true",
+                           help="affiche qui a un recu, sans rien produire")
+    p_caution.add_argument("--recu-le", metavar="DATE", dest="recu_le",
+                           help="date du versement ; defaut : « lease_start »")
+    p_caution.add_argument("--montant", type=_amount, metavar="MONTANT",
+                           help="defaut : deux mois de loyer hors charges")
+    p_caution.set_defaults(handler=cmd_caution)
+
     p_assurance = sous.add_parser(
         "assurance", help="qui a depose son attestation d'assurance")
     p_assurance.add_argument("--locataire", action="append", metavar="CLE")
@@ -746,7 +866,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 COMMANDES = (
     "quittance", "attestation", "domicile", "locataires", "suivi", "relance",
-    "assurance",
+    "assurance", "caution",
 )
 
 

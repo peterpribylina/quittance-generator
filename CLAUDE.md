@@ -119,6 +119,25 @@ Les marqueurs `✓`/`·` passent par `cli.markers()`, qui retombe sur `X`/`.`
 quand `sys.stdout` ne sait pas les encoder : une redirection Windows repasse en
 cp1252 et ferait planter la commande.
 
+## Depot de garantie
+
+`DepotGarantie.montant_attendu` vaut **deux mois de loyer hors charges** : les
+provisions ne sont pas couvertes par le depot, elles se regularisent a part.
+
+Le recu ecrit la somme en toutes lettres (`formatting.montant_en_lettres`), ce
+qu'attend un recu : « six cent quatre-vingts euros (680,00 € ) ». L'orthographe
+des nombres suit la regle francaise — « quatre-vingts » et « deux cents »
+prennent un s en fin de nombre seulement, « mille » est invariable.
+
+Son PDF reprend la **grille editoriale de la quittance**, pas la lettre de
+l'attestation de domicile : le locataire recoit les deux a quelques jours
+d'intervalle. Il reste **en francais uniquement**, et sort dans `Docs`.
+
+`fichiers_docs` normalise les accents avant de comparer : les recus produits a
+la main s'ecrivent tantot `Recu_depot_de_garantie_X.pdf`, tantot
+`Reçu dépôt de garantie - X.pdf`. Les **restitutions** sont exclues — elles
+soldent le depot a la sortie, c'est l'operation inverse.
+
 ## Suivi des assurances
 
 `quittances assurance` ne suit **aucune echeance** : il liste les fichiers de

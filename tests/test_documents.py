@@ -11,11 +11,13 @@ from quittances.config import Config
 from quittances.documents import (
     Attestation,
     AttestationDomicile,
+    DepotGarantie,
     DocumentError,
     Quittance,
     Relance,
     RelanceAssurance,
     fichiers_assurance,
+    fichiers_depot_garantie,
 )
 
 NBSP = "\u00a0"  # espace insecable, cf. formatting.format_amount
@@ -489,3 +491,72 @@ def test_relance_assurance_html_respecte_les_contraintes(config: Config) -> None
     assert "max-width:560px" in html
     assert "<style" not in html and "class=" not in html
     assert "http://" not in html and "https://" not in html
+
+
+def build_depot(config: Config, **overrides) -> DepotGarantie:
+    params = {
+        "tenant": config.tenant("Jin"),
+        "amount": Decimal("780.00"),
+        "received_on": date(2026, 8, 28),
+        "issued_on": date(2026, 9, 17),
+        "first_month": date(2026, 9, 1),
+    }
+    params.update(overrides)
+    return DepotGarantie(**params)
+
+
+def test_depot_vaut_deux_mois_hors_charges(config: Config) -> None:
+    """Jin est a 390 de loyer et 60,50 de charges : le depot ignore les charges."""
+    assert DepotGarantie.montant_attendu(config.tenant("Jin")) == Decimal("780.00")
+
+
+def test_depot_sans_loyer_configure(config: Config) -> None:
+    with pytest.raises(DocumentError, match="rent"):
+        DepotGarantie.montant_attendu(config.tenant("Xin"))
+
+
+def test_depot_montant_en_lettres(config: Config) -> None:
+    assert build_depot(config).amount_words == "sept cent quatre-vingts euros"
+
+
+def test_depot_montant_negatif_refuse(config: Config) -> None:
+    with pytest.raises(DocumentError, match="positif"):
+        build_depot(config, amount=Decimal("0"))
+
+
+def test_depot_va_dans_docs(config: Config, tmp_path: Path) -> None:
+    chemin = build_depot(config).output_path(tmp_path)
+    assert chemin.parent == tmp_path / "Jingyi_Luo" / "Docs"
+    assert chemin.name == "Recu_depot_de_garantie_Jingyi_LUO.pdf"
+
+
+def test_depot_email_en_francais_seulement(config: Config) -> None:
+    texte, html = build_depot(config).email_body("Peter")
+    assert "Hi Jingyi" not in texte and "English" not in html
+    assert "780,00" in texte
+    assert "deux mois de loyer hors charges" in texte
+
+
+def test_depot_email_rappelle_la_restitution(config: Config) -> None:
+    texte, html = build_depot(config).email_body("Peter")
+    assert "état des lieux de sortie" in texte
+    assert "restitution" in texte
+    assert "🔒" in texte
+
+
+def test_depot_detecte_les_recus_existants(config: Config, tmp_path: Path) -> None:
+    """Les recus deposes a la main s'ecrivent avec ou sans accents."""
+    creer_docs(
+        config, tmp_path, "Jin",
+        "Reçu dépôt de garantie - Jingyi LUO.pdf", "bail.pdf",
+    )
+    trouves = fichiers_depot_garantie(config.tenant("Jin"), tmp_path)
+    assert [f.name for f in trouves] == ["Reçu dépôt de garantie - Jingyi LUO.pdf"]
+
+
+def test_depot_ignore_les_restitutions(config: Config, tmp_path: Path) -> None:
+    """Une restitution solde le depot a la sortie : c'est l'inverse d'un recu."""
+    creer_docs(
+        config, tmp_path, "Jin", "Recu_restitution_depot_de_garantie_Jingyi.pdf"
+    )
+    assert fichiers_depot_garantie(config.tenant("Jin"), tmp_path) == []

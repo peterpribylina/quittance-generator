@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+import unicodedata
 from itertools import groupby
 from decimal import Decimal
 from pathlib import Path
@@ -20,6 +21,7 @@ from .formatting import (
     format_amount_en,
     format_date,
     format_date_en,
+    montant_en_lettres,
     format_date_long,
     month_name,
     month_name_en,
@@ -73,6 +75,19 @@ ASTUCE_ASSURANCE = (
 ASTUCE_ASSURANCE_EN = (
     "💡 Tip: your insurer can usually send it within minutes from your online "
     "account or over the phone."
+)
+
+# Sort du depot de garantie, rappele au locataire au moment de l'encaissement :
+# c'est la question qu'il pose invariablement a la sortie.
+RESTITUTION_DEPOT = (
+    "🔒 Ce dépôt est conservé pendant toute la durée de la location, puis "
+    "restitué dans le mois qui suit l'état des lieux de sortie, déduction "
+    "faite des éventuels impayés, excédents de consommation ou frais de "
+    "remise en état."
+)
+CONSERVATION_DEPOT = (
+    "📎 Garde ce reçu : c'est ta preuve du versement, et il te servira au "
+    "moment de la restitution."
 )
 
 CONSERVATION_DOMICILE = (
@@ -253,22 +268,161 @@ def docs_dir(tenant: Tenant, root: Path | None = None) -> Path:
     return base / tenant.slug / "Docs"
 
 
-def fichiers_assurance(tenant: Tenant, root: Path | None = None) -> list[Path]:
-    """Attestations d'assurance deposees dans « Docs », du plus recent au plus ancien.
+def _sans_accent(texte: str) -> str:
+    """« Reçu_dépôt » -> « recu_depot », pour comparer des noms de fichiers.
 
-    Le critere est le nom du fichier : tout fichier de « Docs » contenant
-    « assurance » compte, quelle que soit son extension. Les locataires
-    envoient aussi bien un PDF qu'une photo de leur attestation.
+    Les documents deposes a la main ecrivent tantot « depot », tantot
+    « dépôt » ; la recherche doit ignorer la difference.
+    """
+    decompose = unicodedata.normalize("NFD", texte.casefold())
+    return "".join(c for c in decompose if unicodedata.category(c) != "Mn")
+
+
+def fichiers_docs(
+    tenant: Tenant,
+    *mots_cles: str,
+    exclure: tuple[str, ...] = (),
+    root: Path | None = None,
+) -> list[Path]:
+    """Fichiers de « Docs » dont le nom contient tous les mots-cles.
+
+    Du plus recent au plus ancien. Accents et casse sont ignores, et
+    l'extension n'entre pas en compte : les locataires deposent aussi bien un
+    PDF qu'une photo.
     """
     dossier = docs_dir(tenant, root)
     if not dossier.is_dir():
         return []
-    trouves = [
-        fichier
-        for fichier in dossier.iterdir()
-        if fichier.is_file() and MOT_CLE_ASSURANCE in fichier.name.casefold()
-    ]
+    cherches = [_sans_accent(mot) for mot in mots_cles]
+    ecartes = [_sans_accent(mot) for mot in exclure]
+    trouves = []
+    for fichier in dossier.iterdir():
+        if not fichier.is_file():
+            continue
+        nom = _sans_accent(fichier.name)
+        if all(mot in nom for mot in cherches) and not any(
+            mot in nom for mot in ecartes
+        ):
+            trouves.append(fichier)
     return sorted(trouves, key=lambda f: f.stat().st_mtime, reverse=True)
+
+
+def fichiers_assurance(tenant: Tenant, root: Path | None = None) -> list[Path]:
+    """Attestations d'assurance deposees dans « Docs »."""
+    return fichiers_docs(tenant, MOT_CLE_ASSURANCE, root=root)
+
+
+def fichiers_depot_garantie(tenant: Tenant, root: Path | None = None) -> list[Path]:
+    """Recus de depot de garantie presents dans « Docs ».
+
+    « restitution » est ecarte : un recu de restitution solde le depot a la
+    sortie du locataire, c'est l'inverse du recu d'encaissement.
+    """
+    return fichiers_docs(
+        tenant, "depot", "garantie", exclure=("restitution",), root=root
+    )
+
+
+@dataclass(frozen=True)
+class DepotGarantie:
+    """Recu confirmant l'encaissement du depot de garantie.
+
+    Le montant vaut deux mois de loyer **hors charges** : le depot ne couvre
+    pas les provisions, qui se regularisent separement.
+
+    Reste **en francais uniquement**, comme l'attestation de domicile : c'est
+    une piece qui peut etre produite en justice.
+    """
+
+    tenant: Tenant
+    amount: Decimal
+    received_on: date
+    issued_on: date
+    # Mois d'entree : la clause de reservation le nomme explicitement.
+    first_month: date
+
+    def __post_init__(self) -> None:
+        if self.amount <= 0:
+            raise DocumentError("Le depot de garantie doit etre positif.")
+
+    @staticmethod
+    def montant_attendu(tenant: Tenant) -> Decimal:
+        """Deux mois de loyer hors charges."""
+        if tenant.rent is None:
+            raise DocumentError(
+                f"Loyer inconnu pour {tenant.full_name} : renseignez « rent » "
+                f"dans config.yaml (tenants.{tenant.key}) ou passez --montant."
+            )
+        return (tenant.rent * 2).quantize(Decimal("0.01"))
+
+    @property
+    def amount_label(self) -> str:
+        return format_amount(self.amount)
+
+    @property
+    def amount_words(self) -> str:
+        """« six cent quatre-vingts euros », comme l'exige un recu."""
+        return montant_en_lettres(self.amount)
+
+    @property
+    def received_on_label(self) -> str:
+        return format_date(self.received_on)
+
+    @property
+    def issued_on_label(self) -> str:
+        return format_date(self.issued_on)
+
+    @property
+    def first_month_label(self) -> str:
+        return month_name(self.first_month.month)
+
+    @property
+    def filename(self) -> str:
+        """Un seul recu par locataire : pas de date dans le nom."""
+        return (
+            f"Recu_depot_de_garantie_{self.tenant.first_name}_"
+            f"{self.tenant.last_name.upper().replace(' ', '_')}.pdf"
+        )
+
+    def output_path(self, root: Path | None = None) -> Path:
+        """<dossier du bien>/<Prenom_Nom>/Docs/<fichier>."""
+        return docs_dir(self.tenant, root) / self.filename
+
+    @property
+    def email_subject(self) -> str:
+        return "Reçu de dépôt de garantie"
+
+    def email_body(self, landlord_first_name: str) -> tuple[str, str]:
+        prenom = self.tenant.first_name
+        texte = (
+            f"Bonjour {prenom},\n\n"
+            f"tu trouveras ci-joint le reçu du dépôt de garantie de "
+            f"{self.amount_label} que tu m'as versé le "
+            f"{self.received_on_label}, soit deux mois de loyer hors "
+            f"charges.\n\n"
+            f"{RESTITUTION_DEPOT}\n\n"
+            f"{CONSERVATION_DEPOT}\n\n"
+            f"Bien à toi,\n{landlord_first_name}"
+        )
+        html = emails.document([
+            emails.entete("Reçu de dépôt de garantie", self.tenant.full_name),
+            emails.montant(
+                "Dépôt de garantie reçu",
+                self.amount_label,
+                f"deux mois de loyer hors charges, versés le "
+                f"{self.received_on_label}",
+                ton="succes",
+            ),
+            emails.paragraphe(
+                f"Bonjour {prenom},<br/><br/>"
+                f"tu trouveras ci-joint le reçu du dépôt de garantie que tu "
+                f"m'as versé le <b>{self.received_on_label}</b>."
+            ),
+            emails.encart("🔒", RESTITUTION_DEPOT.removeprefix("🔒 ")),
+            emails.encart("📎", CONSERVATION_DEPOT.removeprefix("📎 ")),
+            emails.signature(f"Bien à toi,<br/>{landlord_first_name}"),
+        ])
+        return texte, html
 
 
 @dataclass(frozen=True)

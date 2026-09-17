@@ -198,6 +198,35 @@ en évidence, échéance du bail et suggestion de virement programmé en encarts
 version texte accompagne toujours la version HTML, pour les clients qui ne
 l'affichent pas.
 
+Produire le reçu de dépôt de garantie, deux mois de loyer hors charges :
+
+```bash
+quittances caution --locataire Madina --recu-le 28/08/2026
+```
+
+Le montant se déduit du loyer configuré, `--montant` le remplace. Le PDF reprend
+la mise en page de la quittance, écrit la somme en toutes lettres comme l'exige
+un reçu, et va dans **`Docs`**. Il reste **en français uniquement** : c'est une
+pièce qui peut être produite en justice.
+
+Voir qui a déjà un reçu :
+
+```bash
+quittances caution --suivi
+```
+
+```
+LOCATAIRE    MAISON   REÇU   ATTENDU   FICHIER
+Alice R.     anzin      ✓     640,00 €   Reçu dépôt de garantie - Alice ROLLAND.pdf
+Madina T.    vals       ·     680,00 €   -
+
+9 reçus, 1 manquant
+```
+
+La détection ignore accents et casse, et retrouve donc les reçus déjà produits à
+la main sous d'autres conventions de nommage. Les reçus de **restitution** sont
+écartés : ils soldent le dépôt à la sortie, c'est l'inverse.
+
 Voir qui a déposé son attestation d'assurance :
 
 ```bash

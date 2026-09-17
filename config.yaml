@@ -119,7 +119,7 @@ tenants:
     title: M
     first_name: Henri
     last_name: Fournet
-    email: fournethyou2008@gmail.com
+    email: fournethyou2008@gmail.com, l.fournet@groupeblondel.com
     property: vals
     lease_start: 2026-09-01
     rent: 390.00
@@ -145,5 +145,5 @@ tenants:
     # donc consommation electrique superieure.
     charges: 90.00
     title: M
-    email: pmathias@gmail.com
+    email: pmathias@gmail.com, christellecroque@hotmail.fr
 

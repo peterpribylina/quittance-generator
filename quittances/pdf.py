@@ -24,7 +24,12 @@ from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import Paragraph
 
 from .config import Config
-from .documents import Attestation, AttestationDomicile, Quittance
+from .documents import (
+    Attestation,
+    AttestationDomicile,
+    DepotGarantie,
+    Quittance,
+)
 from .formatting import elision
 
 PAGE_WIDTH, PAGE_HEIGHT = A4
@@ -255,6 +260,70 @@ def render_quittance(quittance: Quittance, config: Config, path: Path) -> Path:
 
     _rule(canvas, 742.0)
     _paragraph(canvas, MENTION_LEGALE, MARGE, 754.0, DROITE - MARGE, MENTION)
+
+    canvas.showPage()
+    canvas.save()
+    return path
+
+
+def render_depot_garantie(
+    depot: DepotGarantie, config: Config, path: Path
+) -> Path:
+    """Ecrit le recu de depot de garantie en PDF a `path`.
+
+    Reprend la grille editoriale de la quittance : meme en-tete, meme titre,
+    meme encart de montant. Le locataire recoit les deux documents a quelques
+    jours d'intervalle, ils doivent se ressembler.
+
+    Le corps est ferre a gauche, comme l'attestation de domicile : justifie, il
+    se lezardait sur les adresses longues.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    landlord = config.landlord
+    tenant = depot.tenant
+
+    canvas = pdfcanvas.Canvas(str(path), pagesize=A4)
+    canvas.setTitle(f"Reçu de dépôt de garantie - {tenant.full_name}")
+    canvas.setAuthor(landlord.legal_name)
+
+    _draw_watermark(canvas, config)
+    _draw_header(canvas, config)
+    _draw_title(canvas, "Reçu de dépôt de garantie", tenant.full_name)
+
+    _label(canvas, "Montant reçu", MARGE, 246.0)
+    _text(canvas, depot.amount_label, MARGE, 260.0, FONT_BOLD, 30.0, NOIR)
+    _label(canvas, "Versé le", DROITE - 120.0, 246.0)
+    _text(canvas, depot.received_on_label, DROITE - 120.0, 262.0, FONT, 13.0, GRIS)
+
+    _rule(canvas, 322.0)
+
+    corps = (
+        f"Je soussigné {_bold(landlord.legal_name)}, bailleur, déclare avoir "
+        f"reçu de {_bold(tenant.full_name)}, qui occupe "
+        f"{escape(tenant.dwelling)} au {_bold(tenant.address)}, la somme de "
+        f"{_bold(depot.amount_words)} ({_bold(depot.amount_label)}) au titre "
+        f"du dépôt de garantie, versée le "
+        f"{_bold(depot.received_on_label)}.",
+        "Ce dépôt correspond à deux mois de loyer hors charges.",
+        "Il est conservé pendant toute la durée de la location, puis restitué "
+        "dans le mois qui suit l'état des lieux de sortie. Il pourra être "
+        "réduit du montant des loyers impayés, des excédents de consommation "
+        "et de charges, ainsi que des frais de remise en état, conformément à "
+        "la législation en vigueur.",
+        f"En cas de non-paiement du loyer du mois de "
+        f"{escape(depot.first_month_label)} et d'absence du locataire au cours "
+        f"de ce même mois, ce dépôt sera considéré comme des frais de "
+        f"réservation et restera acquis au bailleur.",
+    )
+    haut = 348.0
+    for markup in corps:
+        haut += _paragraph(
+            canvas, markup, MARGE, haut, DROITE - MARGE, CORPS_GAUCHE
+        ) + 16.0
+
+    _draw_closing(canvas, config, depot.issued_on_label, haut=haut + 14.0)
 
     canvas.showPage()
     canvas.save()
