@@ -4,16 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Ce que fait le projet
 
-Génère les quittances de loyer et attestations d'hébergement en PDF pour les
-locataires de trois biens (colocations d'Anzin et Valenciennes, appartement de
-Lille), et les envoie par email. Usage personnel du bailleur, en local, sur
-Windows.
+Produit les documents locatifs en PDF pour les locataires de trois biens
+(colocations d'Anzin et Valenciennes, appartement de Lille) et les envoie par
+email : quittances de loyer, attestations de domicile et d'hebergement, recus de
+depot de garantie. Suit aussi les loyers encaisses, les attestations d'assurance
+et les depots recus, et relance ce qui manque. Usage personnel du bailleur, en
+local, sur Windows.
 
 ## Commandes
 
 ```bash
 python -m pip install -e ".[dev]"   # installe le paquet et les outils de test
-python -m pytest                    # 89 tests
+python -m pytest                    # 206 tests
 python -m pytest tests/test_pdf.py::test_quittance_produit_un_pdf_a4   # un seul test
 quittances locataires               # verifie que config.yaml se charge
 ```
@@ -28,7 +30,7 @@ Quatre couches, du bas vers le haut :
 |---|---|---|
 | Données | `config.py`, `formatting.py` | aucune |
 | Métier | `documents.py` | config, formatting |
-| Effets | `pdf.py`, `mailer.py` | config, documents |
+| Effets | `pdf.py`, `emails.py`, `mailer.py` | config, documents |
 | Orchestration | `cli.py` | tout |
 
 **`documents.py` ne connaît ni le PDF ni l'email.** `Quittance` et
@@ -166,14 +168,14 @@ porte la date complete : un locataire peut en demander plusieurs dans l'annee
 pour des motifs differents.
 
 Son PDF suit une **mise en page de lettre** — bloc bailleur, lieu et date a
-droite, titre centre, corps justifie, signature — et non la grille editoriale
-des quittances : le lecteur est un tiers qui attend une forme conventionnelle.
+droite, titre centre, corps ferre a gauche, signature — et non la grille
+editoriale des quittances : le lecteur est un tiers qui attend une forme
+conventionnelle. Le fer a gauche (`CORPS_GAUCHE`) est volontaire : justifie, le
+corps se lezardait des qu'une adresse se coupait en fin de ligne.
 
-Son corps est **ferre a gauche** (`CORPS_GAUCHE`), pas justifie : une adresse
-coupee en fin de ligne creusait des lezardes entre les mots.
-
-`Property.dwelling` (« une chambre », « un logement ») s'ecrit toujours precede
-de `elision` : « locataire d'une chambre », jamais « locataire une chambre ».
+`Property.dwelling` prend `elision` **apres « locataire »** (« locataire d'une
+chambre ») mais pas apres « pour » — la regle complete est dans la section
+Suivi des assurances.
 
 ## Rendu PDF
 

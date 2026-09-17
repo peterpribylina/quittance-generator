@@ -1,7 +1,9 @@
 # quittance-generator
 
-Génère les quittances de loyer et les attestations d'hébergement au format PDF,
-et les envoie par email aux locataires.
+Produit les documents locatifs au format PDF et les envoie par email aux
+locataires : quittances de loyer, attestations de domicile et d'hébergement,
+reçus de dépôt de garantie. Suit aussi les loyers encaissés, les attestations
+d'assurance reçues et les dépôts de garantie, et relance ce qui manque.
 
 ## Installation
 
@@ -123,6 +125,7 @@ facultatif :
 | `email` | le PDF est produit, mais `--envoyer` refuse ce locataire |
 | `rent` / `charges` | il faut passer `--loyer` et `--charges` |
 | `birth_date` / `birth_place` | l'attestation d'hébergement est refusée |
+| `lease_start` | il faut passer `--depuis` (domicile) ou `--recu-le` (caution) |
 
 ## Utilisation
 
@@ -296,13 +299,18 @@ Sans installation, tout fonctionne aussi via `python -m quittances`.
 | `--locataire CLE` | locataire ciblé, répétable |
 | `--tous` | tous les locataires, toutes maisons confondues |
 | `--maison CLE` | tous les locataires de cette maison |
-
 | `--periode AAAA-MM` | mois de la quittance, défaut : mois courant |
 | `--date-paiement DATE` | défaut : 1er jour de la période |
 | `--loyer` / `--charges` | remplacent les montants de `config.yaml` |
 | `--date DATE` | date d'émission, défaut : aujourd'hui |
-| `--depuis DATE` | début d'hébergement, ou d'occupation (`domicile`) |
+| `--depuis DATE` | début d'hébergement, d'occupation, ou mois de départ d'un suivi |
+| `--jusqu-a AAAA-MM` | borne un suivi, défaut : douze mois |
+| `--manquants` | `suivi` : n'affiche que les retards |
 | `--motif TEXTE` | usage prévu de l'attestation de domicile |
+| `--recu-le DATE` | `caution` : date du versement, défaut : `lease_start` |
+| `--montant MONTANT` | `caution` : remplace les deux mois de loyer |
+| `--suivi` | `caution` : affiche l'état des lieux sans rien produire |
+| `--relancer` | `assurance` : rappelle ceux qui n'ont rien déposé |
 | `--dossier CHEMIN` | racine de sortie, défaut : dossier du bien |
 | `--forcer` | régénère un PDF déjà présent |
 | `--envoyer` | envoie l'email (sinon, génération seule) |
@@ -337,6 +345,7 @@ python -m pytest
 | `quittances/config.py` | lecture et validation de `config.yaml` |
 | `quittances/documents.py` | modèles métier, calculs, chemins de sortie |
 | `quittances/pdf.py` | rendu PDF (ReportLab) |
+| `quittances/emails.py` | mise en forme HTML des emails |
 | `quittances/mailer.py` | construction et envoi SMTP |
 | `quittances/cli.py` | interface en ligne de commande |
 | `quittances/formatting.py` | dates, mois et montants en français |
@@ -345,6 +354,12 @@ Les modèles ne connaissent ni le PDF ni l'email, ce qui permet de tester les
 calculs et les libellés sans rien générer.
 
 ## Historique
+
+Version 2.2 : trois documents et deux suivis s'ajoutent — attestation de
+domicile, reçu de dépôt de garantie, suivi des attestations d'assurance avec
+relance. Les emails de quittance et de relance deviennent des cartes mises en
+forme, et bilingues français/anglais ; les documents destinés à une
+administration française ou opposables en justice restent monolingues.
 
 Version 2.1 : refonte de la mise en page. Le cadre et la grille hérités de
 pdfkit disparaissent au profit d'une hiérarchie typographique — le montant réglé
