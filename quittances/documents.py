@@ -15,7 +15,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from . import emails
-from .config import Tenant
+from .config import LigneManuelle, Tenant
 from .formatting import (
     elision,
     format_amount,
@@ -369,6 +369,9 @@ class Regularisation:
     # manque le facteur d'occupation.
     jours_dus: int = 0
     jours_periode: int = 0
+    # Montants portes a la main : geste commercial, retenue pour degradations.
+    # Positifs en faveur du locataire, comme en configuration.
+    lignes: tuple[LigneManuelle, ...] = ()
 
     @property
     def jours_label(self) -> str:
@@ -385,9 +388,23 @@ class Regularisation:
         return sum(self.reel.values(), Decimal("0.00")).quantize(Decimal("0.01"))
 
     @property
+    def total_lignes(self) -> Decimal:
+        """Somme des lignes manuelles, **retournee dans le sens du solde**.
+
+        En configuration le signe se lit en faveur du locataire : un geste
+        commercial est positif. Le solde compte l'inverse, ce que le locataire
+        doit. Ce retournement a lieu ici et nulle part ailleurs — le dupliquer
+        dans le PDF ou l'email finirait par les faire diverger.
+        """
+        somme = sum((ligne.montant for ligne in self.lignes), Decimal("0.00"))
+        return (-somme).quantize(Decimal("0.01"))
+
+    @property
     def solde(self) -> Decimal:
         """Negatif : trop-percu a restituer au locataire."""
-        return (self.total_reel - self.provisions).quantize(Decimal("0.01"))
+        return (
+            self.total_reel - self.provisions + self.total_lignes
+        ).quantize(Decimal("0.01"))
 
     @property
     def en_faveur_du_locataire(self) -> bool:
@@ -449,7 +466,8 @@ class Regularisation:
             f"Les charges réelles s'élèvent à "
             f"{format_amount(self.total_reel)} pour ta part, contre "
             f"{format_amount(self.provisions)} de provisions versées : {sens}.\n\n"
-            f"{DETAIL_REGULARISATION}\n\n"
+            + self._lignes_texte()
+            + f"{DETAIL_REGULARISATION}\n\n"
             + (f"{self.note}\n\n" if self.note else "")
             + f"Bien à toi,\n{landlord_first_name}"
         )
@@ -467,12 +485,40 @@ class Regularisation:
                 f"tu trouveras ci-joint la régularisation de tes charges pour "
                 f"la période du <b>{self.periode_label}</b>."
             ),
-            emails.encart("📎", DETAIL_REGULARISATION.removeprefix("📎 ")),
         ]
+        if self.lignes:
+            blocs.append(emails.encart("✍️", self._lignes_html()))
+        blocs.append(
+            emails.encart("📎", DETAIL_REGULARISATION.removeprefix("📎 "))
+        )
         if self.note:
             blocs.append(emails.encart("ℹ️", escape(self.note)))
         blocs.append(emails.signature(f"Bien à toi,<br/>{landlord_first_name}"))
         return texte, emails.document(blocs)
+
+    # Le sens de lecture est dit une fois, au lieu d'etre laisse a deviner :
+    # « Degradations 120,00 € » ne dit pas si la somme est retenue ou rendue.
+    MENTION_SIGNE = "un montant positif est en ta faveur"
+
+    def _lignes_texte(self) -> str:
+        if not self.lignes:
+            return ""
+        detail = "\n".join(
+            f"  - {ligne.libelle} : {ligne.montant_label}" for ligne in self.lignes
+        )
+        titre = (
+            "S'y ajoute une ligne portée à la main"
+            if len(self.lignes) == 1
+            else "S'y ajoutent des lignes portées à la main"
+        )
+        return f"{titre} ({self.MENTION_SIGNE}) :\n{detail}\n\n"
+
+    def _lignes_html(self) -> str:
+        detail = "<br/>".join(
+            f"{escape(ligne.libelle)} : <b>{escape(ligne.montant_label)}</b>"
+            for ligne in self.lignes
+        )
+        return f"{detail}<br/><br/><i>{self.MENTION_SIGNE.capitalize()}.</i>"
 
 
 @dataclass(frozen=True)

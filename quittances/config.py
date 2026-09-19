@@ -15,7 +15,7 @@ from typing import Any, Mapping
 
 import yaml
 
-from .formatting import parse_amount
+from .formatting import format_amount_signe, parse_amount
 
 DEFAULT_CONFIG_PATH = Path("config.yaml")
 CONFIG_ENV_VAR = "QUITTANCES_CONFIG"
@@ -66,6 +66,23 @@ def _montant_positif(valeur: Any, contexte: str) -> Decimal:
     if montant < 0:
         raise ConfigError(f"{contexte} : un montant negatif n'a pas de sens.")
     return montant
+
+
+def _lignes_manuelles(data: Mapping[str, Any], ctx: str) -> list[Any]:
+    """Valide la forme de `lignes_manuelles` avant de la detailler.
+
+    Un mapping au lieu d'une liste est l'erreur naturelle quand on ecrit du
+    YAML a la main : elle doit se dire, pas se traduire en « champ inconnu ».
+    """
+    brut = data.get("lignes_manuelles")
+    if brut in (None, ""):
+        return []
+    if not isinstance(brut, list):
+        raise ConfigError(
+            f"{ctx}.lignes_manuelles : une liste est attendue. "
+            "Chaque entree porte date, libelle et montant, prefixee d'un tiret."
+        )
+    return brut
 
 
 @dataclass(frozen=True)
@@ -150,6 +167,66 @@ class Property:
 
 
 @dataclass(frozen=True)
+class LigneManuelle:
+    """Montant porte a la main sur une regularisation : geste, degradations.
+
+    **Le signe se lit en faveur du locataire** : un geste commercial est
+    positif, une retenue pour degradations negative. C'est le sens dans lequel
+    le bailleur raisonne quand il saisit la ligne — « je lui rends 50 », « je
+    lui retiens 120 ». Le solde d'une regularisation compte l'inverse, ce que
+    le locataire doit ; l'inversion est faite une seule fois, dans
+    `Regularisation.total_lignes`, et nulle part ailleurs.
+
+    La `date` rattache la ligne a une regularisation : seules celles qui
+    tombent dans la periode sont reprises. Un bailleur en emet au moins une par
+    an, et une de sortie ; sans cette date, un geste de 2026 reviendrait sur la
+    regularisation de 2027.
+    """
+
+    date: date
+    libelle: str
+    montant: Decimal
+
+    @property
+    def montant_label(self) -> str:
+        """« +50,00 € », signe toujours visible.
+
+        Sans le signe, « Degradations 120,00 € » ne dit pas si la somme est
+        retenue ou rendue : c'est la seule information qui manque au lecteur.
+        """
+        return format_amount_signe(self.montant)
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any], contexte: str) -> "LigneManuelle":
+        if not isinstance(data, Mapping):
+            raise ConfigError(f"{contexte} : un mapping est attendu (date, libelle, montant).")
+        inconnus = set(data) - {"date", "libelle", "montant"}
+        if inconnus:
+            raise ConfigError(
+                f"{contexte} : champ(s) inconnu(s) {', '.join(sorted(inconnus))}. "
+                "Attendus : date, libelle, montant."
+            )
+        quand = _optional_date(data, "date", contexte)
+        if quand is None:
+            raise ConfigError(
+                f"{contexte} : « date » est obligatoire. Elle rattache la ligne "
+                "a une regularisation."
+            )
+        libelle = str(data.get("libelle") or "").strip()
+        if not libelle:
+            raise ConfigError(
+                f"{contexte} : « libelle » est obligatoire. Un montant sans "
+                "explication sur le document genere une question."
+            )
+        montant = _optional_amount(data, "montant", contexte)
+        if montant is None:
+            raise ConfigError(f"{contexte} : « montant » est obligatoire.")
+        if montant == 0:
+            raise ConfigError(f"{contexte} : un montant nul n'a rien a regulariser.")
+        return cls(date=quand, libelle=libelle, montant=montant)
+
+
+@dataclass(frozen=True)
 class Tenant:
     key: str
     first_name: str
@@ -177,6 +254,9 @@ class Tenant:
     # Quote-part de surface, en pourcentage du total de la maison. Sert a
     # repartir les charges annuelles.
     share: Decimal | None = None
+    # Montants portes a la main sur une regularisation, positifs en faveur du
+    # locataire. Voir `LigneManuelle`.
+    lignes_manuelles: tuple[LigneManuelle, ...] = ()
 
     @property
     def full_name(self) -> str:
@@ -237,6 +317,18 @@ class Tenant:
         sortie = min(fin, due) if due else fin
         return max(0, (sortie - entree).days + 1)
 
+    def lignes_manuelles_entre(
+        self, debut: date, fin: date
+    ) -> tuple["LigneManuelle", ...]:
+        """Lignes manuelles dont la date tombe dans la periode, bornes incluses.
+
+        Chaque regularisation ne reprend que les siennes : c'est ce qui permet
+        d'en emettre plusieurs sans rejouer les gestes des annees passees.
+        """
+        return tuple(
+            ligne for ligne in self.lignes_manuelles if debut <= ligne.date <= fin
+        )
+
     @property
     def share_label(self) -> str:
         """« 22,39 % », espace insecable avant le signe."""
@@ -276,6 +368,10 @@ class Tenant:
             preavis=bool(data.get("preavis", True)),
             room=str(data["room"]) if data.get("room") else None,
             share=_optional_amount(data, "share", ctx),
+            lignes_manuelles=tuple(
+                LigneManuelle.from_dict(ligne, f"{ctx}.lignes_manuelles[{i}]")
+                for i, ligne in enumerate(_lignes_manuelles(data, ctx))
+            ),
         )
 
 

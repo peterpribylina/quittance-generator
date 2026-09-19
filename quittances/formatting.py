@@ -207,6 +207,17 @@ def format_amount(value: Decimal) -> str:
     return f"{signe}{' '.join(groupes)},{decimales} €"
 
 
+def format_amount_signe(value: Decimal) -> str:
+    """« +50,00 € » ou « -120,00 € » : le signe est toujours porte.
+
+    `format_amount` omet le plus, ce qui convient a un loyer, jamais negatif.
+    Une ligne de regularisation manuelle va dans les deux sens : sans le signe,
+    « Degradations 120,00 € » ne dit pas si la somme est retenue ou rendue.
+    """
+    rendu = format_amount(value)
+    return rendu if rendu.startswith("-") else f"+{rendu}"
+
+
 def parse_amount(value: object) -> Decimal:
     """Accepte 390, 390.0, "390.00" ou "390,00" et renvoie un Decimal."""
     if isinstance(value, Decimal):

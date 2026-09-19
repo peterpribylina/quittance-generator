@@ -329,6 +329,47 @@ jours, et la part non couverte remonte sur la ligne Bailleur :
     preavis: false        # sans preavis : septembre est proratisé 19/30
 ```
 
+#### Gestes et retenues
+
+Tout ne se calcule pas. Un geste commercial, une retenue pour dégradations : ces
+montants se portent à la main sous le locataire, dans `config.yaml`.
+
+```yaml
+  MathiasP:
+    lignes_manuelles:
+      - date: 2026-09-30
+        libelle: Geste commercial pour le départ anticipé
+        montant: 50.00
+      - date: 2026-09-30
+        libelle: Retenue pour remise en état du mur de la chambre
+        montant: -120.00
+```
+
+**Le signe se lit en faveur du locataire** : positif, la somme lui revient ;
+négatif, elle lui est retenue. C'est le sens dans lequel on raisonne en
+saisissant la ligne — « je lui rends 50 », « je lui retiens 120 ».
+
+Le `libelle` est **obligatoire**, et s'imprime en clair à côté du montant : un
+montant sans explication génère une question. La `date` rattache la ligne à une
+régularisation, et une seule — c'est ce qui permet d'en émettre plusieurs, une
+par an et une de sortie, sans rejouer les gestes des années passées. Une ligne
+datée hors de la période demandée est signalée au terminal plutôt que perdue.
+
+Le document les reprend sous les provisions, signe et couleur compris, et le
+solde en tient compte :
+
+```
+  Total des charges réelles                     20,85 €
+  Provisions versées                            90,00 €
+  Geste commercial pour le départ anticipé     +50,00 €
+  Retenue pour remise en état du mur          -120,00 €
+  Un montant positif est en votre faveur.
+  Reste à payer                                  0,85 €
+```
+
+Au-delà d'une ligne, le bloc signature passe à la page suivante : il mesure
+192 pt et se serait écrit par-dessus la mention légale.
+
 ### Ajustements mensuels
 
 Un bail fixe un loyer, mais la réalité mensuelle varie : un locataire parti tout

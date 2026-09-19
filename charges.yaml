@@ -1,15 +1,49 @@
 --- # Charges relevees facture par facture, par maison et par mois.
 #
-# Les postes fixes (eau, internet) sont declares dans config.yaml sous
-# `monthly_charges` : inutile de les repeter ici. Un poste inscrit dans ce
-# fichier **remplace** la reference pour ce mois.
+# Un poste inscrit ici **remplace** la reference de `config.yaml`
+# (`monthly_charges`) pour ce mois. C'est le fichier a editer pour corriger un
+# montant : une facture d'eau qui s'ecarte de la provision, un mois d'internet
+# offert, une electricite relevee sur facture.
+#
+# L'eau et l'internet sont portes ci-dessous sur toute l'annee de bail, aux
+# montants de reference, pour qu'ils soient ajustables mois par mois sans
+# toucher a `config.yaml`. Attention : un poste present ici est tenu pour
+# **releve** et perd le `~` qui, dans `quittances charges`, signale un montant
+# presume. Retirer une ligne la rend a la reference, et au marqueur.
 #
 # L'electricite se releve depuis les factures deposees dans
 # <maison>/Charges/<annee>/ : `quittances factures --ecrire` l'inscrit.
 
+anzin:
+  2026-09: {eau: 80.00, internet: 51.00}
+  2026-10: {eau: 80.00, internet: 51.00}
+  2026-11: {eau: 80.00, internet: 51.00}
+  2026-12: {eau: 80.00, internet: 51.00}
+  2027-01: {eau: 80.00, internet: 51.00}
+  2027-02: {eau: 80.00, internet: 51.00}
+  2027-03: {eau: 80.00, internet: 51.00}
+  2027-04: {eau: 80.00, internet: 51.00}
+  2027-05: {eau: 80.00, internet: 51.00}
+  2027-06: {eau: 80.00, internet: 51.00}
+  2027-07: {eau: 80.00, internet: 51.00}
+  2027-08: {eau: 80.00, internet: 51.00}
+
 vals:
   2026-09:
+    eau: 100.00
+    internet: 51.00
     # Facture du 28/08/2026 : l'abonnement du 23/08 au 22/09 couvre septembre.
     # La consommation de septembre viendra sur la facture suivante.
     # 19,99 € HT + TVA 20 % : c'est le TTC qui est decaisse.
     electricite: 23.99
+  2026-10: {eau: 100.00, internet: 51.00}
+  2026-11: {eau: 100.00, internet: 51.00}
+  2026-12: {eau: 100.00, internet: 51.00}
+  2027-01: {eau: 100.00, internet: 51.00}
+  2027-02: {eau: 100.00, internet: 51.00}
+  2027-03: {eau: 100.00, internet: 51.00}
+  2027-04: {eau: 100.00, internet: 51.00}
+  2027-05: {eau: 100.00, internet: 51.00}
+  2027-06: {eau: 100.00, internet: 51.00}
+  2027-07: {eau: 100.00, internet: 51.00}
+  2027-08: {eau: 100.00, internet: 51.00}

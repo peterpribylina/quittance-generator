@@ -591,6 +591,22 @@ def cmd_regul(config: Config, args: argparse.Namespace) -> int:
         vises = {config.tenant(nom).key for nom in args.locataire}
         lignes = [l for l in lignes if l.tenant.key in vises]
 
+    # Les documents sont montes avant d'etre affiches : le solde imprime au
+    # terminal doit etre celui du PDF, lignes manuelles comprises. Les
+    # recalculer de part et d'autre les ferait diverger.
+    documents = [
+        Regularisation(
+            tenant=ligne.tenant, debut=debut, fin=fin, reel=ligne.reel,
+            totaux_maison=totaux, provisions=ligne.provisions,
+            issued_on=parse_date(args.date) if args.date else date.today(),
+            note=args.note,
+            jours_dus=ligne.tenant.jours_occupes(debut, fin),
+            jours_periode=(fin - debut).days + 1,
+            lignes=ligne.tenant.lignes_manuelles_entre(debut, fin),
+        )
+        for ligne in lignes
+    ]
+
     print(f"{bien.key} - regularisation du {format_date(debut)} au {format_date(fin)}")
     largeur = max(len(l.tenant.short_name) for l in lignes)
     print(
@@ -601,16 +617,25 @@ def cmd_regul(config: Config, args: argparse.Namespace) -> int:
         )
     )
     erreurs = 0
-    for ligne in lignes:
+    for regul in documents:
         print(
             printable(
-                f"  {ligne.tenant.short_name.ljust(largeur)}"
-                f"  {ligne.tenant.share_label.rjust(8)}"
-                f"  {format_amount(ligne.total_reel).rjust(10)}"
-                f"  {format_amount(ligne.provisions).rjust(10)}"
-                f"  {format_amount(ligne.solde).rjust(10)}"
+                f"  {regul.tenant.short_name.ljust(largeur)}"
+                f"  {regul.tenant.share_label.rjust(8)}"
+                f"  {format_amount(regul.total_reel).rjust(10)}"
+                f"  {format_amount(regul.provisions).rjust(10)}"
+                f"  {format_amount(regul.solde).rjust(10)}"
             )
         )
+        # Sans ce detail, un solde qui ne vaut pas reel moins provisions
+        # passerait pour une erreur de calcul.
+        for manuelle in regul.lignes:
+            print(
+                printable(
+                    f"  {''.ljust(largeur)}  {manuelle.montant_label.rjust(8)}"
+                    f"  {manuelle.libelle}"
+                )
+            )
     if reliquat:
         print(
             printable(
@@ -622,19 +647,25 @@ def cmd_regul(config: Config, args: argparse.Namespace) -> int:
         f"{poste} {format_amount(montant)}" for poste, montant in sorted(totaux.items())
     )
     print(printable(f"  Cout de la maison : {detail}"))
+    # Une ligne manuelle datee hors de la periode n'est reprise par aucune
+    # regularisation. Sans ce rappel, un geste commercial saisi puis oublie
+    # disparaitrait sans que rien ne le signale.
+    for l in lignes:
+        for manuelle in l.tenant.lignes_manuelles:
+            if debut <= manuelle.date <= fin:
+                continue
+            print(
+                printable(
+                    f"  Hors periode, non reprise : {l.tenant.short_name} - "
+                    f"{format_date(manuelle.date)} {manuelle.libelle} "
+                    f"{manuelle.montant_label}"
+                )
+            )
     print()
 
-    for ligne in lignes:
-        regul = Regularisation(
-            tenant=ligne.tenant, debut=debut, fin=fin, reel=ligne.reel,
-            totaux_maison=totaux, provisions=ligne.provisions,
-            issued_on=parse_date(args.date) if args.date else date.today(),
-            note=args.note,
-            jours_dus=ligne.tenant.jours_occupes(debut, fin),
-            jours_periode=(fin - debut).days + 1,
-        )
+    for regul in documents:
         chemin = regul.output_path(racine)
-        print(f"{ligne.tenant.full_name} - {chemin}")
+        print(f"{regul.tenant.full_name} - {chemin}")
         if chemin.exists() and not args.forcer:
             print("  PDF deja present (utilisez --forcer pour regenerer)")
         else:
@@ -643,7 +674,7 @@ def cmd_regul(config: Config, args: argparse.Namespace) -> int:
         if args.envoyer:
             try:
                 _deliver(
-                    config, ligne.tenant, regul.email_subject,
+                    config, regul.tenant, regul.email_subject,
                     regul.email_body(config.landlord.first_name), chemin,
                 )
             except MailError as exc:
@@ -824,6 +855,7 @@ def cmd_charges(config: Config, args: argparse.Namespace) -> int:
         print(f"  MOIS     {entete}  {'TOTAL'.rjust(10)}")
 
         total_periode = Decimal("0.00")
+        presume = False
         for m in mois:
             du_mois = journal.du_mois(bien, m)
             cellules = []
@@ -834,6 +866,7 @@ def cmd_charges(config: Config, args: argparse.Namespace) -> int:
                 else:
                     # « ~ » distingue une reference d'un montant releve.
                     marque = "" if du_mois.est_releve(poste) else "~"
+                    presume = presume or bool(marque)
                     chiffres = f"{montant:.2f}".replace(".", ",")
                     cellules.append(f"{marque}{chiffres}".rjust(largeurs[poste]))
             total_periode += du_mois.total
@@ -849,7 +882,11 @@ def cmd_charges(config: Config, args: argparse.Namespace) -> int:
                 f"{format_amount(total_periode).rjust(10)}"
             )
         )
-        print("  ~ montant de reference, non releve sur facture")
+        # La legende ne s'affiche que si un « ~ » figure au tableau : depuis
+        # que l'eau et l'internet sont portes au journal, un mois peut n'avoir
+        # aucun montant presume.
+        if presume:
+            print("  ~ montant de reference, non releve sur facture")
 
         parts, reliquat = repartition(
             bien, total_periode, occupants, debut, _fin_periode(fin)

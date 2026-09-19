@@ -15,7 +15,7 @@ local, sur Windows.
 
 ```bash
 python -m pip install -e ".[dev]"   # installe le paquet et les outils de test
-python -m pytest                    # 261 tests
+python -m pytest                    # 284 tests
 python -m pytest tests/test_pdf.py::test_quittance_produit_un_pdf_a4   # un seul test
 quittances locataires               # verifie que config.yaml se charge
 ```
@@ -126,6 +126,27 @@ elle, une part proratisee est irreconciliable avec le cout de la maison : le
 locataire voit 11,91 € la ou sa quote-part de 18,81 % sur 100 € donnerait
 18,81 €. Le facteur manquant doit etre imprime.
 
+`Tenant.lignes_manuelles` porte ce qui ne se calcule pas : geste commercial,
+retenue pour degradations. **Le signe se lit en faveur du locataire** — positif,
+la somme lui revient — alors que `solde` compte ce qu'il doit. Le retournement
+a lieu dans `Regularisation.total_lignes` et **nulle part ailleurs** : le
+dupliquer dans le PDF ou l'email les ferait diverger, et une inversion passee
+inapercue transformerait un cadeau en dette.
+
+Le `libelle` est obligatoire et le montant nul refuse : `LigneManuelle` echoue
+au chargement plutot que d'imprimer une somme sans explication. La `date`
+rattache la ligne a **une** regularisation (`lignes_manuelles_entre`), sinon un
+geste de 2026 reviendrait sur celle de 2027 ; `cmd_regul` signale celles qui
+tombent hors periode. Les montants s'affichent toujours signes
+(`format_amount_signe`) : « Degradations 120,00 € » ne dirait pas si la somme
+est retenue ou rendue.
+
+La regularisation est le **seul document dont la hauteur varie**. Son bloc de
+cloture mesure `HAUTEUR_CLOTURE` (192 pt) et s'ecrivait par-dessus la mention
+legale des la version a trois postes ; il bascule desormais en page suivante
+quand il ne tient plus. Les libelles manuels sont replies par `_wrap` plutot que
+tronques.
+
 `repartition` distingue **arrondi et vacance** : quand les quotes-parts occupees
 couvrent la periode a 99,95 % ou plus, l'ecart residuel est un arrondi et le
 dernier occupant l'absorbe. Afficher un centime en ligne « Bailleur » ferait
@@ -137,6 +158,11 @@ Deux natures de charges, deux emplacements : les **fixes** dans `config.yaml`
 (`Property.monthly_charges` — eau, internet), les **variables** relevees facture
 par facture dans `charges.yaml` (electricite). Un poste du journal **remplace**
 sa reference pour ce mois ; un poste sans reference s'ajoute.
+
+L'eau et l'internet sont desormais portes au journal sur toute l'annee de bail,
+aux montants de reference, pour etre ajustables mois par mois. Consequence
+assumee : un poste present dans le journal est tenu pour **releve** et perd son
+`~`. Retirer la ligne le rend a la reference, et au marqueur.
 
 Le rapport marque d'un `~` les montants **presumes**. Confondre une reference
 non verifiee avec une facture reelle fausserait une regularisation sans que rien

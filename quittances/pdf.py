@@ -59,6 +59,11 @@ LARGEUR_COLONNE_1 = 265.0
 SIGNATURE_LARGEUR = 240.0
 SIGNATURE_HAUTEUR = 124.0
 
+# Hauteur du bloc « Fait a ... / Signature », depuis sa regle de tete : 68 pt
+# de libelles puis l'image. Sert a savoir s'il tient encore sur la page.
+HAUTEUR_CLOTURE = 68.0 + SIGNATURE_HAUTEUR
+HAUT_MENTION = 756.0
+
 MENTION_LEGALE = (
     "Le paiement de la présente n'emporte pas présomption de paiement des termes "
     "antérieurs. Cette quittance ou ce reçu annule tous les reçus qui auraient pu "
@@ -122,6 +127,28 @@ CORPS = _style("corps", fontSize=9.5, leading=15.5, alignment=TA_JUSTIFY)
 CORPS_GAUCHE = _style("corps_gauche", fontSize=9.5, leading=15.5, alignment=TA_LEFT)
 MENTION = _style("mention", fontSize=6.4, leading=9.0, textColor=GRIS_MOYEN,
                  alignment=TA_JUSTIFY)
+
+
+def _wrap(canvas, contenu: str, police: str, taille: float,
+          largeur: float) -> list[str]:
+    """Coupe `contenu` en lignes tenant dans `largeur`.
+
+    Les libelles des lignes manuelles sont libres : « Retenue pour remise en
+    etat du mur de la chambre ». Tronquer priverait le locataire de
+    l'explication, et deborder ecrirait par-dessus le montant.
+    """
+    lignes: list[str] = []
+    courante = ""
+    for mot in contenu.split():
+        essai = f"{courante} {mot}".strip()
+        if courante and canvas.stringWidth(essai, police, taille) > largeur:
+            lignes.append(courante)
+            courante = mot
+        else:
+            courante = essai
+    if courante:
+        lignes.append(courante)
+    return lignes or [""]
 
 
 def _paragraph(canvas, markup, x, haut, largeur, style=CORPS) -> float:
@@ -297,7 +324,7 @@ def render_regularisation(
     _label(canvas, "Période", DROITE - 150.0, 246.0)
     _text(canvas, regul.periode_label, DROITE - 150.0, 262.0, FONT, 12.0, GRIS)
 
-    _rule(canvas, 322.0)
+    _rule(canvas, 306.0)
 
     prorata = (
         f", et de {regul.jours_dus} jours d'occupation sur "
@@ -310,13 +337,13 @@ def render_regularisation(
         f"Charges réelles du logement situé au {_bold(tenant.address)}, "
         f"réparties au prorata de la surface occupée "
         f"({escape(tenant.share_label)}){prorata}.",
-        MARGE, 344.0, DROITE - MARGE, CORPS_GAUCHE,
+        MARGE, 322.0, DROITE - MARGE, CORPS_GAUCHE,
     )
 
     # Tableau : maison, quote-part, part du locataire.
     col_maison, col_part = DROITE - 320.0, DROITE - 210.0
     col_jours, col_du = DROITE - 110.0, DROITE
-    haut = 392.0
+    haut = 370.0
     _label(canvas, "Poste", MARGE, haut)
     _text_right(canvas, "MAISON", col_maison, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
     _text_right(canvas, "PART", col_part, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
@@ -340,10 +367,10 @@ def render_regularisation(
             format_amount(regul.reel.get(poste, Decimal("0"))),
             col_du, haut, FONT, 9.5,
         )
-        haut += 20.0
+        haut += 18.0
 
     _rule(canvas, haut - 4.0)
-    haut += 10.0
+    haut += 8.0
     for libelle, montant, gras in (
         ("Total des charges réelles", regul.total_reel, True),
         ("Provisions versées", regul.provisions, False),
@@ -351,26 +378,61 @@ def render_regularisation(
         police = FONT_BOLD if gras else FONT
         _text(canvas, libelle, MARGE, haut, police, 9.5)
         _text_right(canvas, format_amount(montant), col_du, haut, police, 9.5)
-        haut += 20.0
+        haut += 18.0
+
+    # Lignes portees a la main. Le libelle dit pourquoi, le signe dit dans quel
+    # sens : « Degradations 120,00 € » ne dirait pas si la somme est retenue ou
+    # rendue. Les deux sont indispensables, d'ou la mention qui les suit.
+    if regul.lignes:
+        largeur_libelle = (DROITE - 70.0) - MARGE
+        for ligne in regul.lignes:
+            replis = _wrap(canvas, ligne.libelle, FONT, 9.5, largeur_libelle)
+            _text_right(
+                canvas, ligne.montant_label, col_du, haut, FONT, 9.5,
+                VERT if ligne.montant > 0 else ACCENT,
+            )
+            for repli in replis:
+                _text(canvas, repli, MARGE, haut, FONT, 9.5)
+                haut += 13.0
+            haut += 5.0
+        _text(
+            canvas, "Un montant positif est en votre faveur.",
+            MARGE, haut - 2.0, FONT, 7.5, GRIS_MOYEN,
+        )
+        haut += 12.0
 
     _rule(canvas, haut - 4.0)
-    haut += 10.0
+    haut += 8.0
     _text(canvas, regul.libelle_solde, MARGE, haut, FONT_BOLD, 10.5)
     _text_right(
         canvas, format_amount(regul.montant_du), col_du, haut,
         FONT_BOLD, 10.5, couleur,
     )
-    haut += 24.0
+    haut += 20.0
 
     if regul.note:
         haut += _paragraph(
             canvas, escape(regul.note), MARGE, haut, DROITE - MARGE, CORPS_GAUCHE
         ) + 12.0
 
-    _draw_closing(canvas, config, format_date(regul.issued_on), haut=haut + 8.0)
+    # La regularisation est le seul document dont la hauteur varie : le nombre
+    # de postes et de lignes manuelles depend du locataire. Quand le bloc de
+    # cloture ne tient plus au-dessus de la mention legale, il passe a la page
+    # suivante. Le laisser deborder ferait signer par-dessus le texte.
+    if haut + 4.0 + HAUTEUR_CLOTURE > HAUT_MENTION - 2.0:
+        _rule(canvas, HAUT_MENTION)
+        _paragraph(canvas, MENTION_LEGALE, MARGE, HAUT_MENTION + 12.0,
+                   DROITE - MARGE, MENTION)
+        canvas.showPage()
+        _draw_watermark(canvas, config)
+        _draw_header(canvas, config)
+        haut = 160.0
 
-    _rule(canvas, 742.0)
-    _paragraph(canvas, MENTION_LEGALE, MARGE, 754.0, DROITE - MARGE, MENTION)
+    _draw_closing(canvas, config, format_date(regul.issued_on), haut=haut + 4.0)
+
+    _rule(canvas, HAUT_MENTION)
+    _paragraph(canvas, MENTION_LEGALE, MARGE, HAUT_MENTION + 12.0,
+               DROITE - MARGE, MENTION)
 
     canvas.showPage()
     canvas.save()
