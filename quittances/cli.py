@@ -176,7 +176,10 @@ def _deliver(
 
 def cmd_tenants(config: Config, args: argparse.Namespace) -> int:
     largeur = max((len(cle) for cle in config.tenants), default=4)
-    print(f"{'CLE'.ljust(largeur)}  {'NOM'.ljust(28)}  {'MAISON'.ljust(8)}  LOYER")
+    print(
+        f"{'CLE'.ljust(largeur)}  {'NOM'.ljust(28)}  {'MAISON'.ljust(7)}  "
+        f"{'CHAMBRE'.ljust(11)}  {'PART'.rjust(8)}  LOYER"
+    )
     for cle, tenant in sorted(config.tenants.items()):
         loyer = format_amount(tenant.rent) if tenant.rent is not None else "-"
         charges = (
@@ -186,7 +189,8 @@ def cmd_tenants(config: Config, args: argparse.Namespace) -> int:
         )
         print(
             f"{cle.ljust(largeur)}  {tenant.full_name.ljust(28)}  "
-            f"{tenant.property.key.ljust(8)}  {loyer}{charges}"
+            f"{tenant.property.key.ljust(7)}  {(tenant.room or '-').ljust(11)}  "
+            f"{tenant.share_label.rjust(8)}  {loyer}{charges}"
         )
     return 0
 

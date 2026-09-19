@@ -121,3 +121,60 @@ def test_nom_abrege_avec_nom_compose(config: Config) -> None:
 def test_nom_complet_intact(config: Config) -> None:
     """L'abreviation est un choix d'affichage : les documents gardent le nom."""
     assert config.tenant("Matilde").full_name == "Matilde Aranibar Campero"
+
+
+def test_chambre_et_quote_part(raw_config: dict, tmp_path: Path) -> None:
+    raw_config["tenants"]["Jin"]["room"] = "R+2"
+    raw_config["tenants"]["Jin"]["share"] = 60.0
+    raw_config["tenants"]["Matilde"]["share"] = 40.0
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    jin = config.tenant("Jin")
+    assert jin.room == "R+2"
+    assert jin.share == Decimal("60.00")
+    assert jin.share_label == "60,00\u00a0%"
+
+
+def test_quote_part_absente(config: Config) -> None:
+    assert config.tenant("Jin").share is None
+    assert config.tenant("Jin").share_label == "-"
+    assert config.tenant("Jin").room is None
+
+
+def test_quotes_parts_doivent_totaliser_cent(raw_config: dict, tmp_path: Path) -> None:
+    """Repartir des charges sur une base fausse donnerait des montants faux."""
+    raw_config["tenants"]["Jin"]["share"] = 60.0
+    raw_config["tenants"]["Matilde"]["share"] = 30.0
+    with pytest.raises(ConfigError) as exc:
+        Config.from_dict(raw_config, base_dir=tmp_path)
+    assert "90" in str(exc.value)
+    assert "anzin" in str(exc.value)
+
+
+def test_quotes_parts_tolerent_l_arrondi(raw_config: dict, tmp_path: Path) -> None:
+    """Des surfaces reelles tombent rarement sur 100,00 % pile."""
+    raw_config["tenants"]["Jin"]["share"] = 60.02
+    raw_config["tenants"]["Matilde"]["share"] = 39.96
+    Config.from_dict(raw_config, base_dir=tmp_path)   # ne leve pas
+
+
+def test_quotes_parts_partielles_refusees(raw_config: dict, tmp_path: Path) -> None:
+    """Un seul locataire renseigne : la repartition serait silencieusement fausse."""
+    raw_config["tenants"]["Jin"]["share"] = 100.0
+    with pytest.raises(ConfigError) as exc:
+        Config.from_dict(raw_config, base_dir=tmp_path)
+    assert "incompletes" in str(exc.value)
+    assert "Matilde" in str(exc.value)
+
+
+def test_maison_sans_aucune_quote_part_acceptee(config: Config) -> None:
+    """Une maison ou la repartition n'est pas encore en place reste valide."""
+    assert all(t.share is None for t in config.tenants.values())
+
+
+def test_quotes_parts_isolees_par_maison(raw_config: dict, tmp_path: Path) -> None:
+    """Anzin et Vals totalisent 100 % chacune, pas 100 % a elles deux."""
+    raw_config["tenants"]["Jin"]["share"] = 60.0
+    raw_config["tenants"]["Matilde"]["share"] = 40.0
+    raw_config["tenants"]["Xin"]["share"] = 100.0     # seule a Valenciennes
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    assert config.tenant("Xin").share == Decimal("100.00")

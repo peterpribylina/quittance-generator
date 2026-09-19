@@ -134,6 +134,11 @@ class Tenant:
     birth_place: str | None = None
     # Entree dans les lieux, pour l'attestation de domicile.
     lease_start: date | None = None
+    # Situation de la chambre : « R+2 », « RDC jardin »...
+    room: str | None = None
+    # Quote-part de surface, en pourcentage du total de la maison. Sert a
+    # repartir les charges annuelles.
+    share: Decimal | None = None
 
     @property
     def full_name(self) -> str:
@@ -169,6 +174,13 @@ class Tenant:
     def dwelling(self) -> str:
         return self.property.dwelling
 
+    @property
+    def share_label(self) -> str:
+        """« 22,39 % », espace insecable avant le signe."""
+        if self.share is None:
+            return "-"
+        return f"{self.share:.2f}".replace(".", ",") + "\u00a0%"
+
     @classmethod
     def from_dict(
         cls, key: str, data: Mapping[str, Any], properties: Mapping[str, Property]
@@ -197,7 +209,45 @@ class Tenant:
             birth_date=data.get("birth_date") or None,
             birth_place=data.get("birth_place") or None,
             lease_start=_optional_date(data, "lease_start", ctx),
+            room=str(data["room"]) if data.get("room") else None,
+            share=_optional_amount(data, "share", ctx),
         )
+
+
+# Tolerance sur la somme des quotes-parts : des surfaces reelles arrondies au
+# centieme tombent rarement sur 100,00 % pile.
+TOLERANCE_QUOTE_PART = Decimal("0.05")
+
+
+def _verifier_quotes_parts(tenants: Mapping[str, "Tenant"]) -> None:
+    """Par maison, les quotes-parts renseignees doivent totaliser 100 %.
+
+    Une maison sans aucune quote-part est acceptee : la repartition des charges
+    n'y est simplement pas encore mise en place. En revanche une maison
+    partiellement renseignee est refusee — repartir des charges sur une base
+    incomplete donnerait des montants faux sans que rien ne le signale.
+    """
+    par_maison: dict[str, list["Tenant"]] = {}
+    for tenant in tenants.values():
+        par_maison.setdefault(tenant.property.key, []).append(tenant)
+
+    for maison, occupants in sorted(par_maison.items()):
+        avec = [t for t in occupants if t.share is not None]
+        if not avec:
+            continue
+        sans = [t.key for t in occupants if t.share is None]
+        if sans:
+            raise ConfigError(
+                f"Quotes-parts incompletes pour la maison « {maison} » : "
+                f"{', '.join(sorted(sans))} n'en ont pas. Renseignez « share » "
+                "pour tous les locataires de la maison, ou pour aucun."
+            )
+        total = sum((t.share for t in avec), Decimal("0"))
+        if abs(total - Decimal("100")) > TOLERANCE_QUOTE_PART:
+            raise ConfigError(
+                f"Les quotes-parts de la maison « {maison} » totalisent "
+                f"{total} % au lieu de 100 %."
+            )
 
 
 @dataclass(frozen=True)
@@ -272,6 +322,7 @@ class Config:
             key: Tenant.from_dict(key, value, properties)
             for key, value in tenants_raw.items()
         }
+        _verifier_quotes_parts(tenants)
         return cls(
             landlord=landlord,
             assets=assets,

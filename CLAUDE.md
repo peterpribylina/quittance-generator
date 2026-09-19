@@ -15,7 +15,7 @@ local, sur Windows.
 
 ```bash
 python -m pip install -e ".[dev]"   # installe le paquet et les outils de test
-python -m pytest                    # 235 tests
+python -m pytest                    # 242 tests
 python -m pytest tests/test_pdf.py::test_quittance_produit_un_pdf_a4   # un seul test
 quittances locataires               # verifie que config.yaml se charge
 ```
@@ -83,6 +83,20 @@ civilité est omise du document (« Reçu de : MORÓN Elsa ») et l'attestation 
 **Les noms composés restent entiers.** `last_name` peut contenir des espaces
 (« Aranibar Campero », « Dos Santos »). L'ancien `fullName.split(" ")[1]`
 tronquait ces noms — ne pas réintroduire de découpage sur l'espace.
+
+## Quotes-parts de surface
+
+`Tenant.share` est un pourcentage de la surface de **sa maison**, pas du parc :
+Anzin et Valenciennes totalisent 100 % chacune. Les charges d'un immeuble se
+repartissent entre ses occupants.
+
+`_verifier_quotes_parts` refuse une maison **partiellement** renseignee, et une
+somme qui s'ecarte de 100 % de plus que `TOLERANCE_QUOTE_PART` (0,05 point, pour
+absorber l'arrondi de surfaces reelles). Une maison sans aucune quote-part reste
+valide : la repartition n'y est pas encore en place.
+
+`Tenant.room` (« R+2 », « RDC jardin ») situe la chambre, sans autre effet que
+l'affichage pour l'instant.
 
 ## Ajustements mensuels
 

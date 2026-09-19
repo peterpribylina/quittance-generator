@@ -126,6 +126,8 @@ facultatif :
 | `rent` / `charges` | il faut passer `--loyer` et `--charges` |
 | `birth_date` / `birth_place` | l'attestation d'hébergement est refusée |
 | `lease_start` | il faut passer `--depuis` (domicile) ou `--recu-le` (caution) |
+| `room` | la chambre n'est pas située (« R+2 », « RDC jardin ») |
+| `share` | pas de quote-part pour répartir les charges annuelles |
 
 ## Utilisation
 
@@ -154,6 +156,38 @@ L'email accompagnant la quittance est **bilingue et mis en forme** : montant
 réglé en évidence, détail loyer et charges, et un rappel de conserver le
 document — il sert de justificatif de domicile pour la CAF ou un dossier de
 garant.
+
+### Quotes-parts de surface
+
+Chaque locataire porte la situation de sa chambre (`room`) et sa part de la
+surface totale de **sa maison** (`share`), sur laquelle se répartiront les
+charges annuelles :
+
+```yaml
+  Matilde:
+    room: R+2
+    share: 22.39
+```
+
+Les quotes-parts d'une même maison doivent totaliser **100 %**, à 0,05 point
+près pour absorber les arrondis. Anzin et Valenciennes comptent chacune pour
+100 %, pas 100 % à elles deux : les charges d'un immeuble se répartissent entre
+ses occupants.
+
+Une maison où aucun locataire n'a de quote-part reste valide — la répartition
+n'y est simplement pas en place. En revanche une maison **partiellement**
+renseignée est refusée : répartir sur une base incomplète donnerait des
+montants faux sans que rien ne le signale.
+
+```bash
+quittances locataires
+```
+
+```
+CLE       NOM                           MAISON   CHAMBRE          PART  LOYER
+Matilde   Matilde Aranibar Campero      anzin    R+2           22,39 %  340,00 € + 70,00 € de charges
+Henri     Henri Fournet                 vals     R+2           25,98 %  390,00 € + 80,00 € de charges
+```
 
 ### Ajustements mensuels
 
