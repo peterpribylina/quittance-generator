@@ -299,20 +299,28 @@ def render_regularisation(
 
     _rule(canvas, 322.0)
 
+    prorata = (
+        f", et de {regul.jours_dus} jours d'occupation sur "
+        f"{regul.jours_periode}"
+        if regul.prorata_applique
+        else ""
+    )
     _paragraph(
         canvas,
         f"Charges réelles du logement situé au {_bold(tenant.address)}, "
         f"réparties au prorata de la surface occupée "
-        f"({escape(tenant.share_label)}).",
+        f"({escape(tenant.share_label)}){prorata}.",
         MARGE, 344.0, DROITE - MARGE, CORPS_GAUCHE,
     )
 
     # Tableau : maison, quote-part, part du locataire.
-    col_maison, col_part, col_du = DROITE - 300.0, DROITE - 170.0, DROITE
+    col_maison, col_part = DROITE - 320.0, DROITE - 210.0
+    col_jours, col_du = DROITE - 110.0, DROITE
     haut = 392.0
     _label(canvas, "Poste", MARGE, haut)
     _text_right(canvas, "MAISON", col_maison, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
     _text_right(canvas, "PART", col_part, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
+    _text_right(canvas, "JOURS", col_jours, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
     _text_right(canvas, "VOTRE PART", col_du, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
     haut += 16.0
     _rule(canvas, haut)
@@ -326,6 +334,7 @@ def render_regularisation(
             col_maison, haut, FONT, 9.5, GRIS,
         )
         _text_right(canvas, tenant.share_label, col_part, haut, FONT, 9.5, GRIS)
+        _text_right(canvas, regul.jours_label, col_jours, haut, FONT, 9.5, GRIS)
         _text_right(
             canvas,
             format_amount(regul.reel.get(poste, Decimal("0"))),

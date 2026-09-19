@@ -15,7 +15,7 @@ local, sur Windows.
 
 ```bash
 python -m pip install -e ".[dev]"   # installe le paquet et les outils de test
-python -m pytest                    # 259 tests
+python -m pytest                    # 261 tests
 python -m pytest tests/test_pdf.py::test_quittance_produit_un_pdf_a4   # un seul test
 quittances locataires               # verifie que config.yaml se charge
 ```
@@ -115,6 +115,16 @@ d'ete a charges reduites creerait une dette fictive.
 Les postes sont regroupes par `charges.groupe` : « eau » et « internet » gardent
 leur nom, tout le reste — abonnement, consommation, CTA, accise — devient
 « Electricite ». Le locataire lit une colonne, pas six lignes de facture.
+
+`Tenant.fin_due` etend `lease_end` a la fin de son mois quand `preavis` vaut
+vrai — le cas par defaut : un preavis respecte rend le mois de depart
+entierement du. Un depart sans preavis se prorate, et la part non couverte
+remonte sur la ligne Bailleur.
+
+Le document porte une colonne **JOURS** (`jours_dus` / `jours_periode`). Sans
+elle, une part proratisee est irreconciliable avec le cout de la maison : le
+locataire voit 11,91 € la ou sa quote-part de 18,81 % sur 100 € donnerait
+18,81 €. Le facteur manquant doit etre imprime.
 
 `repartition` distingue **arrondi et vacance** : quand les quotes-parts occupees
 couvrent la periode a 99,95 % ou plus, l'ecart residuel est un arrondi et le

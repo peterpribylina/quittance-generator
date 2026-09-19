@@ -137,15 +137,16 @@ def test_charge_fixe_negative_refusee(raw_config: dict, tmp_path: Path) -> None:
         Config.from_dict(raw_config, base_dir=tmp_path)
 
 
-def test_reliquat_bailleur_si_chambre_vacante(
+def test_reliquat_bailleur_si_depart_sans_preavis(
     raw_config: dict, tmp_path: Path
 ) -> None:
-    """Un locataire parti en cours de periode laisse sa part au bailleur."""
+    """Sans preavis, le mois se prorate et le reste retombe sur le bailleur."""
     raw_config["tenants"]["Jin"]["share"] = 50.0
     raw_config["tenants"]["Jin"]["lease_start"] = "2026-01-01"
     raw_config["tenants"]["Matilde"]["share"] = 50.0
     raw_config["tenants"]["Matilde"]["lease_start"] = "2026-01-01"
     raw_config["tenants"]["Matilde"]["lease_end"] = "2026-01-15"
+    raw_config["tenants"]["Matilde"]["preavis"] = False
     config = Config.from_dict(raw_config, base_dir=tmp_path)
     bien = config.properties["anzin"]
     occupants = [t for t in config.tenants.values() if t.property.key == "anzin"]
@@ -209,3 +210,39 @@ def test_arrondi_absorbe_et_non_presente_comme_vacance(
     )
     assert reliquat == Decimal("0.00")
     assert sum(m for _, m in parts) == Decimal("100.01")
+
+
+def test_preavis_rend_le_mois_de_depart_entierement_du(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    """Partir le 15 avec preavis ne dispense pas du mois : rien au bailleur."""
+    raw_config["tenants"]["Jin"]["share"] = 50.0
+    raw_config["tenants"]["Jin"]["lease_start"] = "2026-01-01"
+    raw_config["tenants"]["Matilde"]["share"] = 50.0
+    raw_config["tenants"]["Matilde"]["lease_start"] = "2026-01-01"
+    raw_config["tenants"]["Matilde"]["lease_end"] = "2026-01-15"
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    bien = config.properties["anzin"]
+    occupants = [t for t in config.tenants.values() if t.property.key == "anzin"]
+
+    parts, reliquat = repartition(
+        bien, Decimal("1000.00"), occupants, date(2026, 1, 1), date(2026, 1, 31)
+    )
+    montants = {t.key: m for t, m in parts}
+    assert montants["Matilde"] == Decimal("500.00")
+    assert reliquat == Decimal("0.00")
+
+
+def test_preavis_ne_deborde_pas_sur_le_mois_suivant(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    """Le mois de depart est du, pas le suivant."""
+    raw_config["tenants"]["Jin"]["share"] = 50.0
+    raw_config["tenants"]["Jin"]["lease_start"] = "2026-01-01"
+    raw_config["tenants"]["Matilde"]["share"] = 50.0
+    raw_config["tenants"]["Matilde"]["lease_start"] = "2026-01-01"
+    raw_config["tenants"]["Matilde"]["lease_end"] = "2026-01-15"
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    matilde = config.tenant("Matilde")
+    assert matilde.fin_due == date(2026, 1, 31)
+    assert matilde.jours_occupes(date(2026, 2, 1), date(2026, 2, 28)) == 0

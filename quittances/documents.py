@@ -364,6 +364,21 @@ class Regularisation:
     provisions: Decimal
     issued_on: date
     note: str | None = None
+    # Jours dus sur la periode, et jours de la periode. Sans ces deux nombres,
+    # le locataire ne peut pas rapprocher sa part du cout de la maison : il
+    # manque le facteur d'occupation.
+    jours_dus: int = 0
+    jours_periode: int = 0
+
+    @property
+    def jours_label(self) -> str:
+        if not self.jours_periode:
+            return "-"
+        return f"{self.jours_dus}/{self.jours_periode}"
+
+    @property
+    def prorata_applique(self) -> bool:
+        return 0 < self.jours_dus < self.jours_periode
 
     @property
     def total_reel(self) -> Decimal:

@@ -630,6 +630,8 @@ def cmd_regul(config: Config, args: argparse.Namespace) -> int:
             totaux_maison=totaux, provisions=ligne.provisions,
             issued_on=parse_date(args.date) if args.date else date.today(),
             note=args.note,
+            jours_dus=ligne.tenant.jours_occupes(debut, fin),
+            jours_periode=(fin - debut).days + 1,
         )
         chemin = regul.output_path(racine)
         print(f"{ligne.tenant.full_name} - {chemin}")

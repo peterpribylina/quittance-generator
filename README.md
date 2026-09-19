@@ -127,6 +127,7 @@ facultatif :
 | `birth_date` / `birth_place` | l'attestation d'hébergement est refusée |
 | `lease_start` | il faut passer `--depuis` (domicile) ou `--recu-le` (caution) |
 | `lease_end` | le locataire est réputé en place : aucune vacance calculée |
+| `preavis` | vaut `true` : le mois de départ est dû en entier |
 | `room` | la chambre n'est pas située (« R+2 », « RDC jardin ») |
 | `share` | pas de quote-part pour répartir les charges annuelles |
 
@@ -313,6 +314,20 @@ comme une vacance d'un centime serait un contresens.
 
 Les provisions retenues sont celles réellement facturées sur les quittances —
 celles du bail, corrigées des ajustements du mois.
+
+Le document affiche une colonne **JOURS** à côté de la quote-part : sans elle,
+une part proratisée est irréconciliable avec le coût de la maison. Le calcul se
+lit de bout en bout — 100,00 € × 18,81 % × 19/30 = 11,91 €.
+
+**Le mois de départ est dû en entier** dès lors que le préavis a été respecté,
+ce qui est le cas par défaut. Un départ sans préavis se prorate au nombre de
+jours, et la part non couverte remonte sur la ligne Bailleur :
+
+```yaml
+  MathiasP:
+    lease_end: 2026-09-19
+    preavis: false        # sans preavis : septembre est proratisé 19/30
+```
 
 ### Ajustements mensuels
 

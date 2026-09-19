@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Mapping
@@ -169,6 +169,9 @@ class Tenant:
     # Sortie des lieux. Absente tant que le locataire est en place ; une fois
     # renseignee, les charges cessent de lui etre imputees au-dela.
     lease_end: date | None = None
+    # Preavis respecte : le mois de depart est alors du en entier. Un depart
+    # sans preavis se prorate au nombre de jours.
+    preavis: bool = True
     # Situation de la chambre : « R+2 », « RDC jardin »...
     room: str | None = None
     # Quote-part de surface, en pourcentage du total de la maison. Sert a
@@ -209,14 +212,29 @@ class Tenant:
     def dwelling(self) -> str:
         return self.property.dwelling
 
-    def jours_occupes(self, debut: date, fin: date) -> int:
-        """Jours d'occupation dans la periode, bornes incluses.
+    @property
+    def fin_due(self) -> date | None:
+        """Derniere date due, preavis compris.
 
-        Un bail qui commence apres le debut ou se termine avant la fin reduit
-        d'autant la part de charges imputable au locataire.
+        Avec preavis, le mois de depart est du en entier : partir le 19 ne
+        dispense pas de septembre. Sans preavis, la sortie fait foi.
+        """
+        if self.lease_end is None:
+            return None
+        if not self.preavis:
+            return self.lease_end
+        suivant = (self.lease_end.replace(day=28) + timedelta(days=4)).replace(day=1)
+        return suivant - timedelta(days=1)
+
+    def jours_occupes(self, debut: date, fin: date) -> int:
+        """Jours dus dans la periode, bornes incluses.
+
+        Un bail qui commence apres le debut, ou dont l'obligation s'acheve
+        avant la fin, reduit d'autant la part de charges imputable.
         """
         entree = max(debut, self.lease_start) if self.lease_start else debut
-        sortie = min(fin, self.lease_end) if self.lease_end else fin
+        due = self.fin_due
+        sortie = min(fin, due) if due else fin
         return max(0, (sortie - entree).days + 1)
 
     @property
@@ -255,6 +273,7 @@ class Tenant:
             birth_place=data.get("birth_place") or None,
             lease_start=_optional_date(data, "lease_start", ctx),
             lease_end=_optional_date(data, "lease_end", ctx),
+            preavis=bool(data.get("preavis", True)),
             room=str(data["room"]) if data.get("room") else None,
             share=_optional_amount(data, "share", ctx),
         )

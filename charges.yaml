@@ -11,4 +11,5 @@ vals:
   2026-09:
     # Facture du 28/08/2026 : l'abonnement du 23/08 au 22/09 couvre septembre.
     # La consommation de septembre viendra sur la facture suivante.
-    electricite: 19.99
+    # 19,99 € HT + TVA 20 % : c'est le TTC qui est decaisse.
+    electricite: 23.99
