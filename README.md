@@ -189,6 +189,59 @@ Matilde   Matilde Aranibar Campero      anzin    R+2           22,39 %  340,00 �
 Henri     Henri Fournet                 vals     R+2           25,98 %  390,00 € + 80,00 € de charges
 ```
 
+### Charges d'une maison
+
+Les charges se déclarent à deux endroits, selon qu'elles bougent ou non.
+
+Les **fixes** vivent dans `config.yaml`, sous la maison :
+
+```yaml
+  anzin:
+    charges_folder: C:/Users/.../Coloc_Anzin/Charges
+    monthly_charges:
+      eau: 80.00
+      internet: 51.00
+```
+
+Les **variables** se relèvent facture par facture dans `charges.yaml`, à côté
+de `config.yaml` :
+
+```yaml
+anzin:
+  2026-01:
+    electricite: 348.30
+```
+
+Un poste inscrit dans le journal **remplace** sa référence pour ce mois — utile
+quand une facture d'eau s'écarte du montant habituel. Un poste sans référence,
+comme l'électricité, s'ajoute simplement.
+
+Les factures se déposent dans `<maison>/Charges/<année>/`, chemin déclaré par
+`charges_folder`.
+
+```bash
+quittances charges --maison vals --depuis 2026-01 --jusqu-a 2026-02
+```
+
+```
+vals - 14 avenue de Condé, 59300 Valenciennes
+  MOIS           eau  electricite   internet       TOTAL
+  2026-01    ~100,00       588,87     ~51,00    739,87 €
+  2026-02    ~100,00            -     ~51,00    151,00 €
+  Total                                         890,87 €
+  ~ montant de reference, non releve sur facture
+
+  Repartition au prorata de la surface :
+    Henri F.       25,98 %    231,45 €
+```
+
+Le `~` distingue un montant **présumé** d'un montant **relevé** : sans lui, une
+référence non vérifiée se confondrait avec une facture réelle.
+
+C'est un **rapport, pas une régularisation** : il montre ce que coûte la maison
+et ce que chacun supporterait au prorata de sa surface. Il ne compare rien aux
+provisions déjà encaissées.
+
 ### Ajustements mensuels
 
 Un bail fixe un loyer, mais la réalité mensuelle varie : un locataire parti tout
@@ -406,6 +459,7 @@ Sans installation, tout fonctionne aussi via `python -m quittances`.
 | `--envoyer` | envoie l'email (sinon, génération seule) |
 | `--config CHEMIN` | autre `config.yaml` |
 | `--ajustements CHEMIN` | autre `ajustements.yaml` |
+| `--charges-releve CHEMIN` | autre `charges.yaml` |
 
 `--locataire`, `--maison` et `--tous` s'excluent mutuellement. La maison d'un
 locataire nommé est déduite de sa fiche : deux locataires de maisons
@@ -435,6 +489,7 @@ python -m pytest
 |---|---|
 | `quittances/config.py` | lecture et validation de `config.yaml` |
 | `quittances/ajustements.py` | journal des écarts mensuels au bail |
+| `quittances/charges.py` | charges d'une maison et leur répartition |
 | `quittances/documents.py` | modèles métier, calculs, chemins de sortie |
 | `quittances/pdf.py` | rendu PDF (ReportLab) |
 | `quittances/emails.py` | mise en forme HTML des emails |

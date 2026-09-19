@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .ajustements import Ajustement, Ajustements
+from .charges import Charges, repartition
 from .config import Config, ConfigError, Tenant
 from .documents import (
     Attestation,
@@ -543,6 +544,99 @@ def cmd_relance(config: Config, args: argparse.Namespace) -> int:
     return 1 if erreurs else 0
 
 
+def cmd_charges(config: Config, args: argparse.Namespace) -> int:
+    """Charges reelles d'une maison, mois par mois, et leur repartition.
+
+    C'est un **rapport**, pas une regularisation : il montre ce que coute la
+    maison et ce que chacun supporterait au prorata de sa surface. Il ne
+    compare rien aux provisions deja encaissees.
+    """
+    journal = Charges.load(
+        getattr(args, "charges_path", None),
+        config.properties,
+        base_dir=config.source.parent,
+    )
+    mois, debut, fin = periode_suivi(args)
+
+    if args.maison:
+        if args.maison not in config.properties:
+            connus = ", ".join(sorted(config.properties))
+            raise CliError(f"Maison « {args.maison} » inconnue. Maisons : {connus}.")
+        biens = [config.properties[args.maison]]
+    else:
+        biens = [
+            b for b in config.properties.values()
+            if b.monthly_charges or any(
+                cle == b.key for cle, _ in journal.entrees
+            )
+        ]
+    if not biens:
+        print("Aucune maison n'a de charges declarees.")
+        return 0
+
+    releve, presume, _ = markers()
+    for bien in biens:
+        occupants = [
+            t for t in config.tenants.values() if t.property.key == bien.key
+        ]
+        postes = sorted(
+            {p for m in mois for p in journal.du_mois(bien, m).postes}
+        )
+        if not postes:
+            continue
+
+        print(f"{bien.key} - {bien.address}")
+        # Chaque colonne s'elargit a son intitule : « electricite » ne doit pas
+        # etre tronque en « electrici ».
+        largeurs = {poste: max(len(poste), 9) for poste in postes}
+        entete = "  ".join(poste.rjust(largeurs[poste]) for poste in postes)
+        print(f"  MOIS     {entete}  {'TOTAL'.rjust(10)}")
+
+        total_periode = Decimal("0.00")
+        for m in mois:
+            du_mois = journal.du_mois(bien, m)
+            cellules = []
+            for poste in postes:
+                montant = du_mois.postes.get(poste)
+                if montant is None:
+                    cellules.append("-".rjust(largeurs[poste]))
+                else:
+                    # « ~ » distingue une reference d'un montant releve.
+                    marque = "" if du_mois.est_releve(poste) else "~"
+                    chiffres = f"{montant:.2f}".replace(".", ",")
+                    cellules.append(f"{marque}{chiffres}".rjust(largeurs[poste]))
+            total_periode += du_mois.total
+            print(
+                printable(
+                    f"  {m:%Y-%m}  {'  '.join(cellules)}  "
+                    f"{format_amount(du_mois.total).rjust(10)}"
+                )
+            )
+        print(
+            printable(
+                f"  {'Total'.ljust(7)}  {' ' * len(entete)}  "
+                f"{format_amount(total_periode).rjust(10)}"
+            )
+        )
+        print("  ~ montant de reference, non releve sur facture")
+
+        parts = repartition(bien, total_periode, occupants)
+        if parts:
+            print("\n  Repartition au prorata de la surface :")
+            for tenant, montant in parts:
+                print(
+                    printable(
+                        f"    {tenant.short_name.ljust(13)} "
+                        f"{tenant.share_label.rjust(8)}  "
+                        f"{format_amount(montant).rjust(10)}"
+                    )
+                )
+        elif occupants:
+            print("  Quotes-parts non renseignees : repartition impossible.")
+        print()
+    return 0
+
+
 def cmd_ajustements(config: Config, args: argparse.Namespace) -> int:
     """Journal des ecarts au bail, du plus recent au plus ancien."""
     ajustements = args.ajustements
@@ -893,6 +987,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", metavar="CHEMIN", help="chemin de config.yaml")
     parser.add_argument("--ajustements", metavar="CHEMIN", dest="ajustements_path",
                         help="chemin d'ajustements.yaml")
+    parser.add_argument("--charges-releve", metavar="CHEMIN", dest="charges_path",
+                        help="chemin de charges.yaml")
     sous = parser.add_subparsers(dest="commande", required=True)
 
     p_list = sous.add_parser("locataires", help="liste les locataires configures")
@@ -934,6 +1030,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_relance.add_argument("--envoyer", action="store_true",
                            help="envoie les rappels (sinon, simple apercu)")
     p_relance.set_defaults(handler=cmd_relance)
+
+    p_charges = sous.add_parser(
+        "charges", help="charges reelles d'une maison et leur repartition")
+    p_charges.add_argument("--maison", metavar="CLE")
+    p_charges.add_argument("--depuis", metavar="AAAA-MM",
+                           help="defaut : janvier de l'annee en cours")
+    p_charges.add_argument("--jusqu-a", metavar="AAAA-MM", dest="jusqu_a")
+    p_charges.set_defaults(handler=cmd_charges)
 
     p_ajustements = sous.add_parser(
         "ajustements", help="journal des ecarts au bail, mois par mois")
@@ -987,7 +1091,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 COMMANDES = (
     "quittance", "attestation", "domicile", "locataires", "suivi", "relance",
-    "assurance", "caution", "ajustements",
+    "assurance", "caution", "ajustements", "charges",
 )
 
 

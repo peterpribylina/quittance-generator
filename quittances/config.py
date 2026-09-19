@@ -7,7 +7,7 @@ dur dans les sources, contrairement a l'ancien `helper.js`.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -58,6 +58,16 @@ def _optional_amount(mapping: Mapping[str, Any], key: str, context: str) -> Deci
         raise ConfigError(f"{context} : {exc}") from exc
 
 
+def _montant_positif(valeur: Any, contexte: str) -> Decimal:
+    try:
+        montant = parse_amount(valeur)
+    except ValueError as exc:
+        raise ConfigError(f"{contexte} : {exc}") from exc
+    if montant < 0:
+        raise ConfigError(f"{contexte} : un montant negatif n'a pas de sens.")
+    return montant
+
+
 @dataclass(frozen=True)
 class Landlord:
     title: str
@@ -105,6 +115,14 @@ class Property:
     # Ce qui est loue, tel qu'il s'ecrit dans une attestation de domicile :
     # « une chambre » en colocation, « un logement » pour un bien entier.
     dwelling: str = "une chambre"
+    # Ou sont deposees les factures de la maison (eau, internet, electricite).
+    charges_folder: Path | None = None
+    # Charges mensuelles de reference, par poste. L'electricite n'y figure pas :
+    # elle varie trop, et se releve facture par facture dans charges.yaml.
+    #
+    # Ce dictionnaire rend `Property` — et donc `Tenant` — non hachable :
+    # indexer par `tenant.key` plutot que par l'objet.
+    monthly_charges: dict[str, Decimal] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, key: str, data: Mapping[str, Any]) -> "Property":
@@ -114,7 +132,21 @@ class Property:
             address=str(_require(data, "address", ctx)),
             folder=Path(str(_require(data, "folder", ctx))),
             dwelling=str(data.get("dwelling") or "une chambre"),
+            charges_folder=(
+                Path(str(data["charges_folder"]))
+                if data.get("charges_folder")
+                else None
+            ),
+            monthly_charges={
+                str(poste): _montant_positif(valeur, f"{ctx}.monthly_charges.{poste}")
+                for poste, valeur in (data.get("monthly_charges") or {}).items()
+            },
         )
+
+    @property
+    def monthly_charges_total(self) -> Decimal:
+        """Somme des charges fixes mensuelles, hors electricite."""
+        return sum(self.monthly_charges.values(), Decimal("0.00"))
 
 
 @dataclass(frozen=True)

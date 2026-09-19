@@ -24,9 +24,19 @@ properties:
   anzin:
     address: 3 impasse Lecomte, 59410 Anzin
     folder: C:/Users/P5073668/Documents/quittances/Coloc_Anzin/Locataires_Anzin
+    charges_folder: C:/Users/P5073668/Documents/quittances/Coloc_Anzin/Charges
+    # Charges fixes mensuelles, reference 2026.
+    monthly_charges:
+      eau: 80.00
+      internet: 51.00
   vals:
     address: 14 avenue de Condé, 59300 Valenciennes
     folder: C:/Users/P5073668/Documents/quittances/Coloc_Vals/Locataires_Vals
+    charges_folder: C:/Users/P5073668/Documents/quittances/Coloc_Vals/Charges
+    # Charges fixes mensuelles, reference 2026.
+    monthly_charges:
+      eau: 100.00
+      internet: 51.00
   lille:
     address: 84 rue Jules Vallès, 59800 Lille
     dwelling: un logement

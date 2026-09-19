@@ -1,0 +1,16 @@
+--- # Charges relevees facture par facture, par maison et par mois.
+#
+# Les postes fixes (eau, internet) sont declares dans config.yaml sous
+# `monthly_charges` : inutile de les repeter ici. Un poste inscrit dans ce
+# fichier **remplace** la reference pour ce mois — utile quand une facture
+# d'eau s'ecarte du montant habituel.
+#
+# L'electricite n'a pas de reference : elle se releve ici chaque mois, depuis
+# les factures deposees dans <maison>/Charges/<annee>/.
+
+anzin:
+  2026-01:
+    electricite: 348.30
+vals:
+  2026-01:
+    electricite: 588.87

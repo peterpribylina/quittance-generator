@@ -15,7 +15,7 @@ local, sur Windows.
 
 ```bash
 python -m pip install -e ".[dev]"   # installe le paquet et les outils de test
-python -m pytest                    # 242 tests
+python -m pytest                    # 255 tests
 python -m pytest tests/test_pdf.py::test_quittance_produit_un_pdf_a4   # un seul test
 quittances locataires               # verifie que config.yaml se charge
 ```
@@ -28,7 +28,7 @@ Quatre couches, du bas vers le haut :
 
 | Couche | Modules | Dépendances |
 |---|---|---|
-| Données | `config.py`, `ajustements.py`, `formatting.py` | aucune |
+| Données | `config.py`, `ajustements.py`, `charges.py`, `formatting.py` | aucune |
 | Métier | `documents.py` | config, formatting |
 | Effets | `pdf.py`, `emails.py`, `mailer.py` | config, documents |
 | Orchestration | `cli.py` | tout |
@@ -83,6 +83,28 @@ civilité est omise du document (« Reçu de : MORÓN Elsa ») et l'attestation 
 **Les noms composés restent entiers.** `last_name` peut contenir des espaces
 (« Aranibar Campero », « Dos Santos »). L'ancien `fullName.split(" ")[1]`
 tronquait ces noms — ne pas réintroduire de découpage sur l'espace.
+
+## Charges d'une maison
+
+Deux natures de charges, deux emplacements : les **fixes** dans `config.yaml`
+(`Property.monthly_charges` — eau, internet), les **variables** relevees facture
+par facture dans `charges.yaml` (electricite). Un poste du journal **remplace**
+sa reference pour ce mois ; un poste sans reference s'ajoute.
+
+Le rapport marque d'un `~` les montants **presumes**. Confondre une reference
+non verifiee avec une facture reelle fausserait une regularisation sans que rien
+ne le signale.
+
+`repartition` fait absorber l'ecart d'arrondi par le dernier occupant, pour que
+la somme des parts fasse **exactement** le total : un centime perdu par ligne
+finirait par se voir sur un exercice. Un test le verifie sur plusieurs totaux.
+
+`quittances charges` est un **rapport, pas une regularisation** : il ne compare
+rien aux provisions encaissees et n'applique aucun prorata temporis. Ces regles
+ne sont pas encore arretees.
+
+`Property.monthly_charges` etant un dictionnaire, `Property` et `Tenant` ne sont
+plus hachables : indexer par `tenant.key`, pas par l'objet.
 
 ## Quotes-parts de surface
 
