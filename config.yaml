@@ -176,4 +176,11 @@ tenants:
     charges: 90.00
     title: M
     email: pmathias@gmail.com, christellecroque@hotmail.fr
+    # lignes_manuelles:
+      # - date: 2026-09-19
+      #  libelle: Geste commercial pour le départ anticipé
+      #  montant: 50.00
+      #- date: 2026-09-19
+      #  libelle: Retenue pour remise en état du mur de la chambre
+      #  montant: -120.00
 
