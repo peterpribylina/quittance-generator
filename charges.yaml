@@ -2,15 +2,13 @@
 #
 # Les postes fixes (eau, internet) sont declares dans config.yaml sous
 # `monthly_charges` : inutile de les repeter ici. Un poste inscrit dans ce
-# fichier **remplace** la reference pour ce mois — utile quand une facture
-# d'eau s'ecarte du montant habituel.
+# fichier **remplace** la reference pour ce mois.
 #
-# L'electricite n'a pas de reference : elle se releve ici chaque mois, depuis
-# les factures deposees dans <maison>/Charges/<annee>/.
+# L'electricite se releve depuis les factures deposees dans
+# <maison>/Charges/<annee>/ : `quittances factures --ecrire` l'inscrit.
 
-anzin:
-  2026-01:
-    electricite: 348.30
 vals:
-  2026-01:
-    electricite: 588.87
+  2026-09:
+    # Facture du 28/08/2026 : l'abonnement du 23/08 au 22/09 couvre septembre.
+    # La consommation de septembre viendra sur la facture suivante.
+    electricite: 19.99

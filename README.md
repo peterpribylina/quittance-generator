@@ -286,6 +286,34 @@ C'est un **rapport, pas une régularisation** : il montre ce que coûte la maiso
 et ce que chacun supporterait au prorata de sa surface. Il ne compare rien aux
 provisions déjà encaissées.
 
+### Régularisation de charges
+
+Confronte les charges réelles aux provisions versées, sur une période :
+
+```bash
+quittances regul --maison vals --depuis 2026-09 --jusqu-a 2026-09
+```
+
+```
+  LOCATAIRE       PART        RÉEL  PROVISIONS       SOLDE
+  Mathias V.   17,61 %     30,11 €     70,00 €    -39,89 €
+  Henri F.     25,98 %     44,42 €     80,00 €    -35,58 €
+  Bailleur     vacance     62,70 €
+  Cout de la maison : Eau 100,00 €  Internet 51,00 €  Électricité 19,99 €
+```
+
+**Un solde négatif est un trop-perçu** : la somme est due au locataire. Le PDF
+reprend la grille de la quittance, avec une colonne par poste — coût de la
+maison, quote-part, part du locataire — pour que la répartition soit
+vérifiable.
+
+La ligne **Bailleur** n'apparaît que s'il reste une part réellement non
+imputée. Un écart d'arrondi est absorbé par le dernier occupant : l'afficher
+comme une vacance d'un centime serait un contresens.
+
+Les provisions retenues sont celles réellement facturées sur les quittances —
+celles du bail, corrigées des ajustements du mois.
+
 ### Ajustements mensuels
 
 Un bail fixe un loyer, mais la réalité mensuelle varie : un locataire parti tout

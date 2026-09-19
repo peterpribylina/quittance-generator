@@ -29,8 +29,11 @@ from .documents import (
     AttestationDomicile,
     DepotGarantie,
     Quittance,
+    Regularisation,
 )
-from .formatting import elision
+from decimal import Decimal
+
+from .formatting import elision, format_amount, format_date
 
 PAGE_WIDTH, PAGE_HEIGHT = A4
 
@@ -257,6 +260,105 @@ def render_quittance(quittance: Quittance, config: Config, path: Path) -> Path:
     _text_right(canvas, "0,00 €", DROITE, haut, FONT, 9.0, VERT)
 
     _draw_closing(canvas, config, quittance.issued_on_label)
+
+    _rule(canvas, 742.0)
+    _paragraph(canvas, MENTION_LEGALE, MARGE, 754.0, DROITE - MARGE, MENTION)
+
+    canvas.showPage()
+    canvas.save()
+    return path
+
+
+def render_regularisation(
+    regul: Regularisation, config: Config, path: Path
+) -> Path:
+    """Ecrit la regularisation de charges en PDF a `path`.
+
+    Grille editoriale de la quittance, avec un tableau a trois colonnes : le
+    cout de la maison, la quote-part du locataire, et ce qui lui revient. Voir
+    le cout total a cote de sa part rend la repartition verifiable.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    tenant = regul.tenant
+    canvas = pdfcanvas.Canvas(str(path), pagesize=A4)
+    canvas.setTitle(f"Régularisation de charges - {tenant.full_name}")
+    canvas.setAuthor(config.landlord.legal_name)
+
+    _draw_watermark(canvas, config)
+    _draw_header(canvas, config)
+    _draw_title(canvas, "Régularisation de charges", tenant.full_name)
+
+    _label(canvas, regul.libelle_solde, MARGE, 246.0)
+    couleur = VERT if regul.solde <= 0 else ACCENT
+    _text(canvas, format_amount(regul.montant_du), MARGE, 260.0,
+          FONT_BOLD, 30.0, couleur)
+    _label(canvas, "Période", DROITE - 150.0, 246.0)
+    _text(canvas, regul.periode_label, DROITE - 150.0, 262.0, FONT, 12.0, GRIS)
+
+    _rule(canvas, 322.0)
+
+    _paragraph(
+        canvas,
+        f"Charges réelles du logement situé au {_bold(tenant.address)}, "
+        f"réparties au prorata de la surface occupée "
+        f"({escape(tenant.share_label)}).",
+        MARGE, 344.0, DROITE - MARGE, CORPS_GAUCHE,
+    )
+
+    # Tableau : maison, quote-part, part du locataire.
+    col_maison, col_part, col_du = DROITE - 300.0, DROITE - 170.0, DROITE
+    haut = 392.0
+    _label(canvas, "Poste", MARGE, haut)
+    _text_right(canvas, "MAISON", col_maison, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
+    _text_right(canvas, "PART", col_part, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
+    _text_right(canvas, "VOTRE PART", col_du, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
+    haut += 16.0
+    _rule(canvas, haut)
+    haut += 12.0
+
+    for poste in regul.postes:
+        _text(canvas, poste, MARGE, haut, FONT, 9.5)
+        _text_right(
+            canvas,
+            format_amount(regul.totaux_maison.get(poste, Decimal("0"))),
+            col_maison, haut, FONT, 9.5, GRIS,
+        )
+        _text_right(canvas, tenant.share_label, col_part, haut, FONT, 9.5, GRIS)
+        _text_right(
+            canvas,
+            format_amount(regul.reel.get(poste, Decimal("0"))),
+            col_du, haut, FONT, 9.5,
+        )
+        haut += 20.0
+
+    _rule(canvas, haut - 4.0)
+    haut += 10.0
+    for libelle, montant, gras in (
+        ("Total des charges réelles", regul.total_reel, True),
+        ("Provisions versées", regul.provisions, False),
+    ):
+        police = FONT_BOLD if gras else FONT
+        _text(canvas, libelle, MARGE, haut, police, 9.5)
+        _text_right(canvas, format_amount(montant), col_du, haut, police, 9.5)
+        haut += 20.0
+
+    _rule(canvas, haut - 4.0)
+    haut += 10.0
+    _text(canvas, regul.libelle_solde, MARGE, haut, FONT_BOLD, 10.5)
+    _text_right(
+        canvas, format_amount(regul.montant_du), col_du, haut,
+        FONT_BOLD, 10.5, couleur,
+    )
+    haut += 24.0
+
+    if regul.note:
+        haut += _paragraph(
+            canvas, escape(regul.note), MARGE, haut, DROITE - MARGE, CORPS_GAUCHE
+        ) + 12.0
+
+    _draw_closing(canvas, config, format_date(regul.issued_on), haut=haut + 8.0)
 
     _rule(canvas, 742.0)
     _paragraph(canvas, MENTION_LEGALE, MARGE, 754.0, DROITE - MARGE, MENTION)

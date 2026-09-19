@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Mapping
@@ -186,11 +186,107 @@ def repartition(
         cumul += montant
 
     reliquat = (total - cumul).quantize(Decimal("0.01"))
-    if debut is None or fin is None:
-        # Sans periode, l'ecart ne peut venir que de l'arrondi : le dernier
-        # occupant l'absorbe plutot que d'inventer une part bailleur.
-        if parts and reliquat:
-            dernier, montant = parts[-1]
-            parts[-1] = (dernier, montant + reliquat)
-            reliquat = Decimal("0.00")
+
+    # Distinguer l'arrondi de la vacance : quand les quotes-parts occupees
+    # couvrent la totalite de la periode, l'ecart residuel n'est qu'un arrondi
+    # et le dernier occupant l'absorbe. L'afficher comme une vacance de un
+    # centime serait un contresens.
+    couverture = Decimal("0")
+    for tenant in avec_part:
+        if debut is None or fin is None:
+            couverture += tenant.share
+        else:
+            jours_periode = (fin - debut).days + 1
+            if jours_periode > 0:
+                couverture += (
+                    tenant.share * tenant.jours_occupes(debut, fin) / jours_periode
+                )
+    if parts and reliquat and couverture >= Decimal("99.95"):
+        dernier, montant = parts[-1]
+        parts[-1] = (dernier, montant + reliquat)
+        reliquat = Decimal("0.00")
     return parts, reliquat
+
+
+# Regroupement des postes pour la presentation : l'electricite arrive en
+# plusieurs lignes depuis les factures, elle se lit en une colonne.
+GROUPES = {"eau": "Eau", "internet": "Internet"}
+
+
+def groupe(poste: str) -> str:
+    """« abonnement », « cta », « accise »... -> « Electricite »."""
+    return GROUPES.get(poste.strip().lower(), "Électricité")
+
+
+@dataclass(frozen=True)
+class LigneRegularisation:
+    """Ce qu'un locataire doit et ce qu'il a verse, sur une periode."""
+
+    tenant: Any
+    reel: dict[str, Decimal]          # par groupe de postes
+    provisions: Decimal
+
+    @property
+    def total_reel(self) -> Decimal:
+        return sum(self.reel.values(), Decimal("0.00"))
+
+    @property
+    def solde(self) -> Decimal:
+        """Negatif : le locataire a trop verse, il lui est du."""
+        return (self.total_reel - self.provisions).quantize(Decimal("0.01"))
+
+
+def regularisations(
+    bien: Property,
+    occupants: list,
+    mois: list[date],
+    journal: "Charges",
+    ajustements,
+) -> tuple[list[LigneRegularisation], dict[str, Decimal], Decimal]:
+    """Charges reelles imputees a chacun, face aux provisions encaissees.
+
+    Renvoie `(lignes, totaux_par_groupe, reliquat_bailleur)`. Le reliquat est
+    la part des charges qu'aucun locataire ne supporte : chambre vacante ou
+    periode hors bail.
+
+    Les provisions retenues sont celles reellement facturees sur les
+    quittances — celles du bail, corrigees des ajustements du mois.
+    """
+    from .factures import FIXE  # evite un import circulaire au chargement
+
+    reels: dict[Any, dict[str, Decimal]] = {t.key: {} for t in occupants}
+    provisions: dict[Any, Decimal] = {t.key: Decimal("0.00") for t in occupants}
+    totaux: dict[str, Decimal] = {}
+    reliquat = Decimal("0.00")
+
+    for m in mois:
+        du_mois = journal.du_mois(bien, m)
+        fin_mois = (m.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        for poste, montant in du_mois.postes.items():
+            nom = groupe(poste)
+            totaux[nom] = totaux.get(nom, Decimal("0.00")) + montant
+            parts, reste = repartition(bien, montant, occupants, m, fin_mois)
+            reliquat += reste
+            for tenant, part in parts:
+                reels[tenant.key][nom] = reels[tenant.key].get(
+                    nom, Decimal("0.00")
+                ) + part
+
+        for tenant in occupants:
+            ajustement = ajustements.pour(tenant, m) if ajustements else None
+            charges = ajustement.charges_effectives if ajustement else None
+            if charges is None:
+                charges = tenant.charges or Decimal("0.00")
+            # Un locataire hors bail ne s'est vu facturer aucune provision.
+            if tenant.jours_occupes(m, fin_mois) > 0:
+                provisions[tenant.key] += charges
+
+    lignes = [
+        LigneRegularisation(
+            tenant=tenant,
+            reel={k: v.quantize(Decimal("0.01")) for k, v in reels[tenant.key].items()},
+            provisions=provisions[tenant.key],
+        )
+        for tenant in occupants
+    ]
+    return lignes, totaux, reliquat.quantize(Decimal("0.01"))

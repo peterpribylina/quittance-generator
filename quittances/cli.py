@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .ajustements import Ajustement, Ajustements
-from .charges import Charges, repartition
+from .charges import Charges, regularisations, repartition
 from .factures import FactureError, lire_facture, mois_complets, prorata_mensuel
 from .config import Config, ConfigError, Tenant
 from .documents import (
@@ -30,17 +30,25 @@ from .documents import (
     DepotGarantie,
     DocumentError,
     Quittance,
+    Regularisation,
     Relance,
     RelanceAssurance,
     fichiers_assurance,
     fichiers_depot_garantie,
     quittance_path,
 )
-from .formatting import format_amount, iter_months, month_year, parse_amount
+from .formatting import (
+    format_amount,
+    format_date,
+    iter_months,
+    month_year,
+    parse_amount,
+)
 from .mailer import MailError, MailSettings, build_message, send
 from .pdf import (
     render_attestation,
     render_depot_garantie,
+    render_regularisation,
     render_attestation_domicile,
     render_quittance,
 )
@@ -549,6 +557,98 @@ def cmd_relance(config: Config, args: argparse.Namespace) -> int:
             erreurs += 1
             print(f"  ECHEC de l'envoi : {exc}", file=sys.stderr)
         print()
+    return 1 if erreurs else 0
+
+
+def cmd_regul(config: Config, args: argparse.Namespace) -> int:
+    """Regularisation de charges : reel contre provisions, par locataire.
+
+    Un solde negatif est un trop-percu : la somme est due au locataire.
+    """
+    journal = Charges.load(
+        getattr(args, "charges_path", None),
+        config.properties,
+        base_dir=config.source.parent,
+    )
+    mois, debut, _ = periode_suivi(args)
+    fin = _fin_periode(mois[-1])
+    racine = Path(args.dossier) if args.dossier else None
+
+    if not args.maison:
+        raise CliError("Precisez --maison CLE : une regularisation porte sur une maison.")
+    if args.maison not in config.properties:
+        connus = ", ".join(sorted(config.properties))
+        raise CliError(f"Maison « {args.maison} » inconnue. Maisons : {connus}.")
+    bien = config.properties[args.maison]
+    occupants = [t for t in config.tenants.values() if t.property.key == bien.key]
+    if not occupants:
+        raise CliError(f"Aucun locataire dans la maison « {args.maison} ».")
+
+    lignes, totaux, reliquat = regularisations(
+        bien, occupants, mois, journal, args.ajustements
+    )
+    if args.locataire:
+        vises = {config.tenant(nom).key for nom in args.locataire}
+        lignes = [l for l in lignes if l.tenant.key in vises]
+
+    print(f"{bien.key} - regularisation du {format_date(debut)} au {format_date(fin)}")
+    largeur = max(len(l.tenant.short_name) for l in lignes)
+    print(
+        printable(
+            f"  {'LOCATAIRE'.ljust(largeur)}  {'PART'.rjust(8)}"
+            f"  {'RÉEL'.rjust(10)}  {'PROVISIONS'.rjust(10)}"
+            f"  {'SOLDE'.rjust(10)}"
+        )
+    )
+    erreurs = 0
+    for ligne in lignes:
+        print(
+            printable(
+                f"  {ligne.tenant.short_name.ljust(largeur)}"
+                f"  {ligne.tenant.share_label.rjust(8)}"
+                f"  {format_amount(ligne.total_reel).rjust(10)}"
+                f"  {format_amount(ligne.provisions).rjust(10)}"
+                f"  {format_amount(ligne.solde).rjust(10)}"
+            )
+        )
+    if reliquat:
+        print(
+            printable(
+                f"  {'Bailleur'.ljust(largeur)}  {'vacance'.rjust(8)}"
+                f"  {format_amount(reliquat).rjust(10)}"
+            )
+        )
+    detail = "  ".join(
+        f"{poste} {format_amount(montant)}" for poste, montant in sorted(totaux.items())
+    )
+    print(printable(f"  Cout de la maison : {detail}"))
+    print()
+
+    for ligne in lignes:
+        regul = Regularisation(
+            tenant=ligne.tenant, debut=debut, fin=fin, reel=ligne.reel,
+            totaux_maison=totaux, provisions=ligne.provisions,
+            issued_on=parse_date(args.date) if args.date else date.today(),
+            note=args.note,
+        )
+        chemin = regul.output_path(racine)
+        print(f"{ligne.tenant.full_name} - {chemin}")
+        if chemin.exists() and not args.forcer:
+            print("  PDF deja present (utilisez --forcer pour regenerer)")
+        else:
+            render_regularisation(regul, config, chemin)
+            print("  PDF genere")
+        if args.envoyer:
+            try:
+                _deliver(
+                    config, ligne.tenant, regul.email_subject,
+                    regul.email_body(config.landlord.first_name), chemin,
+                )
+            except MailError as exc:
+                erreurs += 1
+                print(f"  ECHEC de l'envoi : {exc}", file=sys.stderr)
+        else:
+            print("  Email non envoye (ajoutez --envoyer)")
     return 1 if erreurs else 0
 
 
@@ -1171,6 +1271,16 @@ def build_parser() -> argparse.ArgumentParser:
                            help="envoie les rappels (sinon, simple apercu)")
     p_relance.set_defaults(handler=cmd_relance)
 
+    p_regul = sous.add_parser(
+        "regul", help="regularisation de charges, reel contre provisions")
+    _add_common_arguments(p_regul)
+    p_regul.add_argument("--depuis", metavar="AAAA-MM",
+                         help="defaut : janvier de l'annee en cours")
+    p_regul.add_argument("--jusqu-a", metavar="AAAA-MM", dest="jusqu_a")
+    p_regul.add_argument("--note", metavar="TEXTE",
+                         help="mention libre ajoutee au document")
+    p_regul.set_defaults(handler=cmd_regul)
+
     p_factures = sous.add_parser(
         "factures", help="lit les factures deposees et en tire le cout mensuel")
     p_factures.add_argument("--maison", metavar="CLE")
@@ -1238,7 +1348,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 COMMANDES = (
     "quittance", "attestation", "domicile", "locataires", "suivi", "relance",
-    "assurance", "caution", "ajustements", "charges", "factures",
+    "assurance", "caution", "ajustements", "charges", "factures", "regul",
 )
 
 

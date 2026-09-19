@@ -15,7 +15,7 @@ local, sur Windows.
 
 ```bash
 python -m pip install -e ".[dev]"   # installe le paquet et les outils de test
-python -m pytest                    # 258 tests
+python -m pytest                    # 259 tests
 python -m pytest tests/test_pdf.py::test_quittance_produit_un_pdf_a4   # un seul test
 quittances locataires               # verifie que config.yaml se charge
 ```
@@ -101,6 +101,25 @@ consommation, bien qu'elles figurent sous un meme total sur la facture.
 
 `mois_complets` refuse d'inscrire un mois que les factures ne couvrent pas de
 bout en bout pour les deux categories.
+
+## Regularisation de charges
+
+`charges.regularisations` confronte le reel aux provisions, mois par mois. Le
+**solde negatif est un trop-percu** du au locataire : c'est le sens des
+regularisations deja etablies a la main, ne pas l'inverser.
+
+Les provisions retenues sont celles **reellement facturees** sur les quittances
+(bail corrige des ajustements), et non le montant du bail : sans cela un mois
+d'ete a charges reduites creerait une dette fictive.
+
+Les postes sont regroupes par `charges.groupe` : « eau » et « internet » gardent
+leur nom, tout le reste — abonnement, consommation, CTA, accise — devient
+« Electricite ». Le locataire lit une colonne, pas six lignes de facture.
+
+`repartition` distingue **arrondi et vacance** : quand les quotes-parts occupees
+couvrent la periode a 99,95 % ou plus, l'ecart residuel est un arrondi et le
+dernier occupant l'absorbe. Afficher un centime en ligne « Bailleur » ferait
+croire a une chambre vide.
 
 ## Charges d'une maison
 

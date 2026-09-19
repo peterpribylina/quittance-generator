@@ -91,6 +91,11 @@ CONSERVATION_DEPOT = (
     "moment de la restitution."
 )
 
+DETAIL_REGULARISATION = (
+    "📎 Le détail poste par poste est en pièce jointe : eau, internet et "
+    "électricité, avec le coût total de la maison et ta quote-part."
+)
+
 CONSERVATION_DOMICILE = (
     "📎 Le document est en pièce jointe, signé. Il est daté du jour : si on te "
     "le demande dans plusieurs mois, redemande-le-moi plutôt que de renvoyer "
@@ -339,6 +344,123 @@ def fichiers_depot_garantie(tenant: Tenant, root: Path | None = None) -> list[Pa
 
 
 @dataclass(frozen=True)
+class Regularisation:
+    """Decompte des charges reelles face aux provisions versees.
+
+    Le **solde est negatif quand le locataire a trop verse** : la somme lui est
+    due. C'est le sens retenu par les regularisations deja etablies a la main.
+
+    Reste **en francais uniquement** : c'est une piece comptable, opposable au
+    meme titre qu'une quittance.
+    """
+
+    tenant: Tenant
+    debut: date
+    fin: date
+    # Part du locataire, par groupe de postes (Eau, Internet, Electricite).
+    reel: dict[str, Decimal]
+    # Cout total de la maison sur la periode, meme decoupage.
+    totaux_maison: dict[str, Decimal]
+    provisions: Decimal
+    issued_on: date
+    note: str | None = None
+
+    @property
+    def total_reel(self) -> Decimal:
+        return sum(self.reel.values(), Decimal("0.00")).quantize(Decimal("0.01"))
+
+    @property
+    def solde(self) -> Decimal:
+        """Negatif : trop-percu a restituer au locataire."""
+        return (self.total_reel - self.provisions).quantize(Decimal("0.01"))
+
+    @property
+    def en_faveur_du_locataire(self) -> bool:
+        return self.solde < 0
+
+    @property
+    def montant_du(self) -> Decimal:
+        """Valeur absolue du solde, pour l'afficher sans signe."""
+        return abs(self.solde)
+
+    @property
+    def libelle_solde(self) -> str:
+        if self.solde < 0:
+            return "Montant à restituer"
+        if self.solde > 0:
+            return "Reste à payer"
+        return "Compte soldé"
+
+    @property
+    def periode_label(self) -> str:
+        return f"{format_date(self.debut)} - {format_date(self.fin)}"
+
+    @property
+    def postes(self) -> list[str]:
+        """Groupes presents, Eau et Internet d'abord."""
+        ordre = {"Eau": 0, "Internet": 1, "Électricité": 2}
+        noms = set(self.reel) | set(self.totaux_maison)
+        return sorted(noms, key=lambda n: (ordre.get(n, 9), n))
+
+    @property
+    def filename(self) -> str:
+        return (
+            f"Regularisation_charges_{self.tenant.first_name}_"
+            f"{self.tenant.last_name.upper().replace(' ', '_')}_"
+            f"{self.debut:%Y-%m}_{self.fin:%Y-%m}.pdf"
+        )
+
+    def output_path(self, root: Path | None = None) -> Path:
+        """<dossier du bien>/<Prenom_Nom>/Docs/<fichier>."""
+        return docs_dir(self.tenant, root) / self.filename
+
+    @property
+    def email_subject(self) -> str:
+        return f"Régularisation de charges - {self.periode_label}"
+
+    def email_body(self, landlord_first_name: str) -> tuple[str, str]:
+        prenom = self.tenant.first_name
+        sens = (
+            f"je te dois {format_amount(self.montant_du)}"
+            if self.solde < 0
+            else f"il reste {format_amount(self.montant_du)} à ta charge"
+            if self.solde > 0
+            else "ton compte de charges est soldé"
+        )
+        texte = (
+            f"Bonjour {prenom},\n\n"
+            f"tu trouveras ci-joint la régularisation de tes charges pour "
+            f"la période du {self.periode_label}.\n\n"
+            f"Les charges réelles s'élèvent à "
+            f"{format_amount(self.total_reel)} pour ta part, contre "
+            f"{format_amount(self.provisions)} de provisions versées : {sens}.\n\n"
+            f"{DETAIL_REGULARISATION}\n\n"
+            + (f"{self.note}\n\n" if self.note else "")
+            + f"Bien à toi,\n{landlord_first_name}"
+        )
+        blocs = [
+            emails.entete("Régularisation de charges", self.periode_label),
+            emails.montant(
+                self.libelle_solde,
+                format_amount(self.montant_du),
+                f"{format_amount(self.total_reel)} de charges réelles contre "
+                f"{format_amount(self.provisions)} versés",
+                ton="succes" if self.solde <= 0 else "attention",
+            ),
+            emails.paragraphe(
+                f"Bonjour {prenom},<br/><br/>"
+                f"tu trouveras ci-joint la régularisation de tes charges pour "
+                f"la période du <b>{self.periode_label}</b>."
+            ),
+            emails.encart("📎", DETAIL_REGULARISATION.removeprefix("📎 ")),
+        ]
+        if self.note:
+            blocs.append(emails.encart("ℹ️", escape(self.note)))
+        blocs.append(emails.signature(f"Bien à toi,<br/>{landlord_first_name}"))
+        return texte, emails.document(blocs)
+
+
+@dataclass(frozen=True)
 class DepotGarantie:
     """Recu confirmant l'encaissement du depot de garantie.
 
@@ -556,8 +678,7 @@ class AttestationDomicile:
 
     @property
     def filename(self) -> str:
-        """Date complete dans le nom : une meme annee peut en compter plusieurs,
-        delivrees pour des motifs differents."""
+        """Date complete dans le nom : une meme annee peut en compter plusieurs,\ndelivrees pour des motifs differents."""
         return (
             f"Attestation_domicile_{self.tenant.first_name}_"
             f"{self.tenant.last_name.upper().replace(' ', '_')}_"
@@ -628,8 +749,7 @@ class Relance:
 
     @property
     def months_label(self) -> str:
-        """« juillet, août et septembre 2026 » : l'annee n'est ecrite qu'une
-        fois par groupe, pas apres chaque mois."""
+        """« juillet, août et septembre 2026 » : l'annee n'est ecrite qu'une\nfois par groupe, pas apres chaque mois."""
         groupes = []
         for annee, mois in groupby(self.months, key=lambda m: m.year):
             noms = [month_name(m.month) for m in mois]

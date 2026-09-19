@@ -190,3 +190,22 @@ def test_locataire_pas_encore_entre(raw_config: dict, tmp_path: Path) -> None:
     montants = {t.key: m for t, m in parts}
     assert montants["Jin"] == Decimal("0.00")
     assert reliquat == Decimal("500.00")
+
+
+def test_arrondi_absorbe_et_non_presente_comme_vacance(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    """Tous presents : l'ecart residuel est un arrondi, pas une chambre vide."""
+    raw_config["tenants"]["Jin"]["share"] = 33.33
+    raw_config["tenants"]["Jin"]["lease_start"] = "2025-09-01"
+    raw_config["tenants"]["Matilde"]["share"] = 66.67
+    raw_config["tenants"]["Matilde"]["lease_start"] = "2025-09-01"
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    bien = config.properties["anzin"]
+    occupants = [t for t in config.tenants.values() if t.property.key == "anzin"]
+
+    parts, reliquat = repartition(
+        bien, Decimal("100.01"), occupants, date(2026, 1, 1), date(2026, 1, 31)
+    )
+    assert reliquat == Decimal("0.00")
+    assert sum(m for _, m in parts) == Decimal("100.01")
