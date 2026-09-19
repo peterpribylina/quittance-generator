@@ -367,8 +367,11 @@ solde en tient compte :
   Reste à payer                                  0,85 €
 ```
 
-Au-delà d'une ligne, le bloc signature passe à la page suivante : il mesure
-192 pt et se serait écrit par-dessus la mention légale.
+La régularisation ne porte **pas** la mention légale du pied de quittance :
+celle-ci parle de « cette quittance ou ce reçu » et de termes de loyer, ce
+qu'une régularisation de charges n'est pas. La place ainsi rendue accueille les
+lignes manuelles. Au-delà de deux, le bloc signature passe à la page suivante —
+il mesure 192 pt et déborderait sous le bord.
 
 ### Ajustements mensuels
 

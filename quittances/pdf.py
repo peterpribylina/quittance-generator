@@ -62,7 +62,9 @@ SIGNATURE_HAUTEUR = 124.0
 # Hauteur du bloc « Fait a ... / Signature », depuis sa regle de tete : 68 pt
 # de libelles puis l'image. Sert a savoir s'il tient encore sur la page.
 HAUTEUR_CLOTURE = 68.0 + SIGNATURE_HAUTEUR
-HAUT_MENTION = 756.0
+
+# Derniere ordonnee utilisable, marge basse egale a la marge haute.
+BAS_UTILE = PAGE_HEIGHT - MARGE
 
 MENTION_LEGALE = (
     "Le paiement de la présente n'emporte pas présomption de paiement des termes "
@@ -415,24 +417,21 @@ def render_regularisation(
             canvas, escape(regul.note), MARGE, haut, DROITE - MARGE, CORPS_GAUCHE
         ) + 12.0
 
+    # Pas de MENTION_LEGALE ici : elle parle de « cette quittance ou ce recu »
+    # et de termes de loyer, ce qu'une regularisation de charges n'est pas. Le
+    # pied de page lui revient, ce qui laisse de la place aux lignes manuelles.
+    #
     # La regularisation est le seul document dont la hauteur varie : le nombre
     # de postes et de lignes manuelles depend du locataire. Quand le bloc de
-    # cloture ne tient plus au-dessus de la mention legale, il passe a la page
-    # suivante. Le laisser deborder ferait signer par-dessus le texte.
-    if haut + 4.0 + HAUTEUR_CLOTURE > HAUT_MENTION - 2.0:
-        _rule(canvas, HAUT_MENTION)
-        _paragraph(canvas, MENTION_LEGALE, MARGE, HAUT_MENTION + 12.0,
-                   DROITE - MARGE, MENTION)
+    # cloture ne tient plus dans la page, il passe a la suivante plutot que de
+    # deborder sous le bord.
+    if haut + 4.0 + HAUTEUR_CLOTURE > BAS_UTILE:
         canvas.showPage()
         _draw_watermark(canvas, config)
         _draw_header(canvas, config)
         haut = 160.0
 
     _draw_closing(canvas, config, format_date(regul.issued_on), haut=haut + 4.0)
-
-    _rule(canvas, HAUT_MENTION)
-    _paragraph(canvas, MENTION_LEGALE, MARGE, HAUT_MENTION + 12.0,
-               DROITE - MARGE, MENTION)
 
     canvas.showPage()
     canvas.save()

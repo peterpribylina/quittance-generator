@@ -297,12 +297,12 @@ def test_pdf_libelle_long_n_est_pas_tronque(config: Config, tmp_path: Path) -> N
     assert libelle in texte
 
 
-def test_la_cloture_ne_deborde_pas_sur_la_mention(
+def test_la_cloture_passe_a_la_page_suivante(
     config: Config, tmp_path: Path
 ) -> None:
-    """Le bloc signature passe a la page suivante plutot que de chevaucher.
+    """Le bloc signature bascule plutot que de deborder sous le bord.
 
-    Un document long faisait signer par-dessus la mention legale.
+    Il mesure 192 pt : un document long le poussait hors de la page.
     """
     beaucoup = tuple(
         LigneManuelle(date(2026, 9, 30), f"Ligne {i}", Decimal("10"))

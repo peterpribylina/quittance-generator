@@ -141,11 +141,16 @@ tombent hors periode. Les montants s'affichent toujours signes
 (`format_amount_signe`) : « Degradations 120,00 € » ne dirait pas si la somme
 est retenue ou rendue.
 
-La regularisation est le **seul document dont la hauteur varie**. Son bloc de
-cloture mesure `HAUTEUR_CLOTURE` (192 pt) et s'ecrivait par-dessus la mention
-legale des la version a trois postes ; il bascule desormais en page suivante
-quand il ne tient plus. Les libelles manuels sont replies par `_wrap` plutot que
-tronques.
+La regularisation ne porte **pas** `MENTION_LEGALE`. Ce texte parle de « cette
+quittance ou ce recu » et de termes de loyer : il ne s'applique pas a une
+regularisation de charges, et le pied de page revient au document. Seule la
+quittance le porte desormais.
+
+Elle est le **seul document dont la hauteur varie**. Son bloc de cloture mesure
+`HAUTEUR_CLOTURE` (192 pt) et s'ecrivait par-dessus la mention legale des la
+version a trois postes ; il bascule desormais en page suivante quand il
+depasserait `BAS_UTILE`. Les libelles manuels sont replies par `_wrap` plutot
+que tronques.
 
 `repartition` distingue **arrondi et vacance** : quand les quotes-parts occupees
 couvrent la periode a 99,95 % ou plus, l'ecart residuel est un arrondi et le
