@@ -7,6 +7,7 @@ calculs et les chemins de sortie.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from xml.sax.saxutils import escape
 from datetime import date
 import unicodedata
 from itertools import groupby
@@ -135,6 +136,10 @@ class Quittance:
     rent: Decimal
     charges: Decimal
     issued_on: date
+    # Motif de l'ajustement du mois, quand les montants s'ecartent du bail. Le
+    # locataire doit comprendre pourquoi sa quittance change : la CLI y place
+    # le texte du journal.
+    note: str | None = None
 
     def __post_init__(self) -> None:
         if self.rent < 0 or self.charges < 0:
@@ -211,6 +216,12 @@ class Quittance:
             if self.charges
             else "rent, no charges"
         )
+        # La note est saisie a la main : elle vaut pour les deux langues, telle
+        # quelle, et son balisage doit etre echappe.
+        note_txt = f"{self.note}\n\n" if self.note else ""
+        encart_note = (
+            [emails.encart("ℹ️", escape(self.note))] if self.note else []
+        )
 
         texte = (
             f"Bonjour {prenom},\n\n"
@@ -218,6 +229,7 @@ class Quittance:
             f"{preposition}{self.period_label}, d'un montant de "
             f"{self.total_label} ({detail}), reçu le "
             f"{self.payment_date_label}.\n\n"
+            f"{note_txt}"
             f"{CONSERVATION}\n\n"
             f"Bien à toi,\n{landlord_first_name}\n\n"
             f"{'-' * 40}\n\n"
@@ -226,6 +238,7 @@ class Quittance:
             f"{self.period_label_en}, for {format_amount_en(self.total)} "
             f"({detail_en}), received on "
             f"{format_date_en(self.payment_date)}.\n\n"
+            f"{note_txt}"
             f"{CONSERVATION_EN}\n\n"
             f"Best,\n{landlord_first_name}"
         )
@@ -243,6 +256,7 @@ class Quittance:
                 f"{preposition}<b>{self.period_label}</b>, reçu le "
                 f"<b>{self.payment_date_label}</b>."
             ),
+            *encart_note,
             emails.encart("📎", conservation_fr),
             emails.signature(f"Bien à toi,<br/>{landlord_first_name}"),
             emails.separateur(),
@@ -253,6 +267,7 @@ class Quittance:
                 f"<b>{self.period_label_en}</b>, received on "
                 f"<b>{format_date_en(self.payment_date)}</b>."
             ),
+            *encart_note,
             emails.encart("📎", conservation_en),
             emails.signature(f"Best,<br/>{landlord_first_name}"),
         ])

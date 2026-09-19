@@ -155,6 +155,50 @@ réglé en évidence, détail loyer et charges, et un rappel de conserver le
 document — il sert de justificatif de domicile pour la CAF ou un dossier de
 garant.
 
+### Ajustements mensuels
+
+Un bail fixe un loyer, mais la réalité mensuelle varie : un locataire parti tout
+l'été ne consomme rien, un autre n'a pas encore branché sa voiture électrique.
+`ajustements.yaml`, à côté de `config.yaml`, porte ces écarts :
+
+```yaml
+MathiasP:
+  2026-09:
+    charges: 20.00
+    motif: Véhicule électrique pas encore rechargé sur place ce mois-ci.
+  2026-07:
+    absent: true
+    motif: Retour au Portugal pour l'été.
+```
+
+| Champ | Effet |
+|---|---|
+| `rent` | remplace le loyer du bail pour ce mois |
+| `charges` | remplace les provisions pour ce mois |
+| `absent` | locataire absent : charges à zéro, sauf valeur explicite |
+| `motif` | la raison, reprise dans l'email au locataire |
+
+**Le loyer reste dû en cas d'absence** : la chambre demeure réservée. Seules les
+charges tombent.
+
+Les montants suivent cet ordre de priorité : `--loyer`/`--charges` en ligne de
+commande, puis l'ajustement du mois, puis le bail. Le suivi somme les montants
+réels, si bien qu'un été sans charges ne compte pas comme un mois plein.
+
+Consulter le journal :
+
+```bash
+quittances ajustements
+```
+
+```
+2026-09  Mathias P.  charges 20,00 €  (360,00 € au total)
+          Véhicule électrique pas encore rechargé sur place ce mois-ci.
+```
+
+Le journal est versionné : `git blame` dira dans un an pourquoi ce mois-là
+était à 20 €.
+
 Voir qui est à jour, mois par mois :
 
 ```bash
@@ -315,6 +359,7 @@ Sans installation, tout fonctionne aussi via `python -m quittances`.
 | `--forcer` | régénère un PDF déjà présent |
 | `--envoyer` | envoie l'email (sinon, génération seule) |
 | `--config CHEMIN` | autre `config.yaml` |
+| `--ajustements CHEMIN` | autre `ajustements.yaml` |
 
 `--locataire`, `--maison` et `--tous` s'excluent mutuellement. La maison d'un
 locataire nommé est déduite de sa fiche : deux locataires de maisons
@@ -343,6 +388,7 @@ python -m pytest
 | Module | Rôle |
 |---|---|
 | `quittances/config.py` | lecture et validation de `config.yaml` |
+| `quittances/ajustements.py` | journal des écarts mensuels au bail |
 | `quittances/documents.py` | modèles métier, calculs, chemins de sortie |
 | `quittances/pdf.py` | rendu PDF (ReportLab) |
 | `quittances/emails.py` | mise en forme HTML des emails |

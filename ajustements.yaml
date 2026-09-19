@@ -1,0 +1,16 @@
+--- # Journal des ecarts au bail, mois par mois.
+#
+# Chaque entree dit ce qui change et pourquoi. Champs disponibles :
+#   rent     loyer du mois, remplace celui du bail
+#   charges  provisions du mois, remplacent celles du bail
+#   absent   locataire absent : charges a zero sauf valeur explicite
+#   motif    la raison, pour s'en souvenir dans un an
+#
+# Le loyer reste du meme en cas d'absence : la chambre demeure reservee.
+
+MathiasP:
+  2026-09:
+    charges: 20.00
+    motif: >-
+      Véhicule électrique pas encore rechargé sur place ce mois-ci ;
+      charges ramenées au niveau des autres locataires.

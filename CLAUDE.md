@@ -15,7 +15,7 @@ local, sur Windows.
 
 ```bash
 python -m pip install -e ".[dev]"   # installe le paquet et les outils de test
-python -m pytest                    # 206 tests
+python -m pytest                    # 232 tests
 python -m pytest tests/test_pdf.py::test_quittance_produit_un_pdf_a4   # un seul test
 quittances locataires               # verifie que config.yaml se charge
 ```
@@ -28,7 +28,7 @@ Quatre couches, du bas vers le haut :
 
 | Couche | Modules | Dépendances |
 |---|---|---|
-| Données | `config.py`, `formatting.py` | aucune |
+| Données | `config.py`, `ajustements.py`, `formatting.py` | aucune |
 | Métier | `documents.py` | config, formatting |
 | Effets | `pdf.py`, `emails.py`, `mailer.py` | config, documents |
 | Orchestration | `cli.py` | tout |
@@ -83,6 +83,33 @@ civilité est omise du document (« Reçu de : MORÓN Elsa ») et l'attestation 
 **Les noms composés restent entiers.** `last_name` peut contenir des espaces
 (« Aranibar Campero », « Dos Santos »). L'ancien `fullName.split(" ")[1]`
 tronquait ces noms — ne pas réintroduire de découpage sur l'espace.
+
+## Ajustements mensuels
+
+`ajustements.yaml` porte les ecarts au bail, mois par mois. Il est
+**centralise et versionne**, et non disperse dans les dossiers des locataires :
+un ajustement est une decision, pas un document, et `git blame` doit pouvoir
+repondre a « pourquoi 20 € en septembre ? ».
+
+Il se resout **a cote du `config.yaml` retenu** (`base_dir=config.source.parent`),
+jamais depuis le repertoire courant. Sans cela `--config autre.yaml` melangerait
+les journaux, et les tests liraient celui du depot — meme piege que le `.env` de
+`test_mailer`.
+
+Ordre de priorite des montants, applique par `resolve_amounts` : ligne de
+commande, puis ajustement du mois, puis bail. `terme_du_mois` applique le meme
+ordre pour que le suivi somme les montants reels.
+
+`absent: true` met les **charges a zero**, jamais le loyer : la chambre reste
+reservee. Une valeur `charges` explicite l'emporte, une absence pouvant laisser
+un abonnement a la charge du locataire.
+
+Un locataire inconnu ou un champ mal orthographie fait **echouer le
+chargement**. Ignorer silencieusement « charge » au lieu de « charges »
+facturerait le mois au tarif du bail sans que rien ne le signale.
+
+Le `motif` remonte jusqu'a l'email du locataire (`Quittance.note`) : un montant
+inhabituel sans explication genere une question.
 
 ## Suivi des paiements
 

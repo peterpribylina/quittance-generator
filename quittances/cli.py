@@ -20,6 +20,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Sequence
 
+from .ajustements import Ajustement, Ajustements
 from .config import Config, ConfigError, Tenant
 from .documents import (
     Attestation,
@@ -116,11 +117,25 @@ def select_tenants(config: Config, args: argparse.Namespace) -> list[Tenant]:
 
 
 def resolve_amounts(
-    tenant: Tenant, args: argparse.Namespace
+    tenant: Tenant, args: argparse.Namespace,
+    ajustement: Ajustement | None = None,
 ) -> tuple[Decimal, Decimal]:
-    """Priorite a la ligne de commande, puis a la configuration du locataire."""
-    loyer = args.loyer if args.loyer is not None else tenant.rent
-    charges = args.charges if args.charges is not None else tenant.charges
+    """Montants du mois, par ordre de priorite decroissant :
+
+    ligne de commande, puis ajustement du mois, puis loyer du bail.
+    """
+    loyer = args.loyer
+    if loyer is None and ajustement is not None:
+        loyer = ajustement.rent
+    if loyer is None:
+        loyer = tenant.rent
+
+    charges = args.charges
+    if charges is None and ajustement is not None:
+        charges = ajustement.charges_effectives
+    if charges is None:
+        charges = tenant.charges
+
     if loyer is None:
         raise CliError(
             f"Loyer inconnu pour {tenant.full_name} : renseignez « rent » dans "
@@ -230,6 +245,24 @@ def periode_suivi(args: argparse.Namespace) -> tuple[list[date], date, date]:
     return mois, debut, mois[-1]
 
 
+def terme_du_mois(
+    tenant: Tenant, periode: date, ajustements: Ajustements
+) -> Decimal | None:
+    """Loyer + charges reellement dus ce mois-la, ajustements compris.
+
+    Sans loyer configure, renvoie None : le suivi affiche « - » plutot que de
+    sommer un montant invente.
+    """
+    ajustement = ajustements.pour(tenant, periode)
+    loyer = (ajustement.rent if ajustement else None) or tenant.rent
+    if loyer is None:
+        return None
+    charges = ajustement.charges_effectives if ajustement else None
+    if charges is None:
+        charges = tenant.charges or Decimal("0.00")
+    return loyer + charges
+
+
 def etats_locataire(
     tenant: Tenant, mois: Sequence[date], racine: Path | None
 ) -> list[str]:
@@ -260,6 +293,7 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
     Les mois posterieurs au mois courant sont affiches mais comptes a part : un
     loyer de mars n'est pas un impaye en septembre.
     """
+    ajustements = args.ajustements
     mois, debut, fin = periode_suivi(args)
     racine = Path(args.dossier) if args.dossier else None
     emise, manquante, future = markers()
@@ -274,15 +308,19 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
     lignes = []
     for tenant in tenants:
         etats = etats_locataire(tenant, mois, racine)
-        terme = (
-            tenant.rent + (tenant.charges or Decimal("0"))
-            if tenant.rent is not None
-            else None
-        )
         compte = {etat: etats.count(etat) for etat in ("emise", "retard", "avenir")}
+        # Chaque mois a son propre terme : un ete sans charges ne se compte pas
+        # comme un mois plein.
+        termes = [terme_du_mois(tenant, m, ajustements) for m in mois]
         montants = (
-            {etat: terme * n for etat, n in compte.items()}
-            if terme is not None
+            {
+                etat: sum(
+                    (terme for terme, e in zip(termes, etats) if e == etat),
+                    Decimal("0.00"),
+                )
+                for etat in ("emise", "retard", "avenir")
+            }
+            if all(terme is not None for terme in termes)
             else None
         )
         lignes.append((tenant, etats, compte, montants))
@@ -344,6 +382,7 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
 
 
 def cmd_quittance(config: Config, args: argparse.Namespace) -> int:
+    ajustements = args.ajustements
     periode = parse_period(args.periode)
     date_paiement = parse_date(args.date_paiement) if args.date_paiement else periode
     emise_le = parse_date(args.date) if args.date else date.today()
@@ -361,9 +400,10 @@ def cmd_quittance(config: Config, args: argparse.Namespace) -> int:
 
     erreurs = 0
     for tenant in tenants:
+        ajustement = ajustements.pour(tenant, periode)
         # Un locataire mal configure ne doit pas interrompre le lot.
         try:
-            loyer, charges = resolve_amounts(tenant, args)
+            loyer, charges = resolve_amounts(tenant, args, ajustement)
         except CliError as exc:
             erreurs += 1
             print(f"{tenant.full_name} : {exc}", file=sys.stderr)
@@ -375,9 +415,16 @@ def cmd_quittance(config: Config, args: argparse.Namespace) -> int:
             rent=loyer,
             charges=charges,
             issued_on=emise_le,
+            # Le locataire voit un montant inhabituel : l'email en donne la
+            # raison, sinon il ecrit pour demander.
+            note=ajustement.motif if ajustement else None,
         )
         chemin = quittance.output_path(racine)
         print(f"{tenant.full_name} - {quittance.total_label} - {chemin}")
+        if ajustement is not None:
+            print(printable(f"  Ajustement : {ajustement.resume()}"))
+            if ajustement.motif:
+                print(printable(f"  Motif : {ajustement.motif}"))
 
         if chemin.exists() and not args.forcer:
             print("  PDF deja present (utilisez --forcer pour regenerer)")
@@ -464,6 +511,41 @@ def cmd_relance(config: Config, args: argparse.Namespace) -> int:
             print(f"  ECHEC de l'envoi : {exc}", file=sys.stderr)
         print()
     return 1 if erreurs else 0
+
+
+def cmd_ajustements(config: Config, args: argparse.Namespace) -> int:
+    """Journal des ecarts au bail, du plus recent au plus ancien."""
+    ajustements = args.ajustements
+    if args.locataire or args.maison or args.tous:
+        cibles = {t.key for t in select_tenants(config, args)}
+        entrees = [a for a in ajustements.tous() if a.tenant_key in cibles]
+    else:
+        entrees = ajustements.tous()
+
+    source = ajustements.source or "ajustements.yaml"
+    print(f"Ajustements mensuels - {source}\n")
+    if not entrees:
+        print("Aucun ajustement enregistre : tout le monde est au tarif du bail.")
+        return 0
+
+    largeur_nom = max(
+        len(config.tenant(a.tenant_key).short_name) for a in entrees
+    )
+    for ajustement in entrees:
+        tenant = config.tenant(ajustement.tenant_key)
+        terme = terme_du_mois(tenant, ajustement.period, ajustements)
+        total = f"  ({format_amount(terme)} au total)" if terme is not None else ""
+        print(
+            printable(
+                f"{ajustement.period:%Y-%m}  "
+                f"{tenant.short_name.ljust(largeur_nom)}  "
+                f"{ajustement.resume()}{total}"
+            )
+        )
+        if ajustement.motif:
+            print(printable(f"{' ' * 10}{ajustement.motif}"))
+    print(f"\n{len(entrees)} ajustement{'s' if len(entrees) > 1 else ''}")
+    return 0
 
 
 def cmd_caution(config: Config, args: argparse.Namespace) -> int:
@@ -779,6 +861,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Generation des quittances de loyer et attestations d'hebergement.",
     )
     parser.add_argument("--config", metavar="CHEMIN", help="chemin de config.yaml")
+    parser.add_argument("--ajustements", metavar="CHEMIN", dest="ajustements_path",
+                        help="chemin d'ajustements.yaml")
     sous = parser.add_subparsers(dest="commande", required=True)
 
     p_list = sous.add_parser("locataires", help="liste les locataires configures")
@@ -820,6 +904,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_relance.add_argument("--envoyer", action="store_true",
                            help="envoie les rappels (sinon, simple apercu)")
     p_relance.set_defaults(handler=cmd_relance)
+
+    p_ajustements = sous.add_parser(
+        "ajustements", help="journal des ecarts au bail, mois par mois")
+    p_ajustements.add_argument("--locataire", action="append", metavar="CLE")
+    p_ajustements.add_argument("--tous", action="store_true")
+    p_ajustements.add_argument("--maison", metavar="CLE")
+    p_ajustements.set_defaults(handler=cmd_ajustements)
 
     p_caution = sous.add_parser(
         "caution", help="recu de depot de garantie, et son suivi")
@@ -866,7 +957,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 COMMANDES = (
     "quittance", "attestation", "domicile", "locataires", "suivi", "relance",
-    "assurance", "caution",
+    "assurance", "caution", "ajustements",
 )
 
 
@@ -904,6 +995,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     ))
     try:
         config = Config.load(args.config)
+        args.ajustements = Ajustements.load(
+            getattr(args, "ajustements_path", None),
+            config.tenants,
+            base_dir=config.source.parent,
+        )
         manquants = config.assets.missing()
         if manquants:
             raise CliError(

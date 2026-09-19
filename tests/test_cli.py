@@ -811,3 +811,138 @@ class TestCaution:
     ) -> None:
         assert run(config_file, "caution", "--recu-le", "2026-08-28") == 1
         assert "--suivi" in capsys.readouterr().err
+
+
+class TestAjustementsCli:
+    """Le journal pese sur les montants factures et sur les totaux du suivi."""
+
+    def _journal(self, config_file: Path, contenu: dict) -> None:
+        import yaml
+
+        (config_file.parent / "ajustements.yaml").write_text(
+            yaml.safe_dump(contenu, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
+
+    def test_charges_ajustees_sur_la_quittance(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Jin est a 390 + 60,50 ; septembre passe a 390 + 20."""
+        self._journal(config_file, {"Jin": {"2026-09": {"charges": 20.0}}})
+
+        assert run(config_file, "--locataire", "Jin", "--periode", "2026-09",
+                   "--dossier", str(tmp_path)) == 0
+        sortie = capsys.readouterr().out
+        assert "410,00" in sortie          # 390 + 20
+        assert "450,50" not in sortie      # le tarif du bail
+
+    def test_motif_affiche_a_la_generation(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        self._journal(
+            config_file,
+            {"Jin": {"2026-09": {"charges": 20.0, "motif": "Pas de recharge."}}},
+        )
+        run(config_file, "--locataire", "Jin", "--periode", "2026-09",
+            "--dossier", str(tmp_path))
+        sortie = capsys.readouterr().out
+        assert "Ajustement" in sortie
+        assert "Pas de recharge." in sortie
+
+    def test_motif_repris_dans_l_email(
+        self, config_file: Path, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Le locataire doit comprendre pourquoi sa quittance change."""
+        envoyes = []
+        self._journal(
+            config_file,
+            {"Jin": {"2026-09": {"charges": 20.0, "motif": "Pas de recharge."}}},
+        )
+        monkeypatch.setenv("SMTP_USER", "bailleur@example.com")
+        monkeypatch.setenv("SMTP_PASSWORD", "secret")
+        monkeypatch.setattr(cli, "send", lambda s, m: envoyes.append(m))
+
+        run(config_file, "--locataire", "Jin", "--periode", "2026-09",
+            "--dossier", str(tmp_path), "--envoyer")
+        corps = envoyes[0].get_body(("plain",)).get_content()
+        assert "Pas de recharge." in corps
+
+    def test_absent_annule_les_charges(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        self._journal(config_file, {"Jin": {"2026-08": {"absent": True}}})
+
+        run(config_file, "--locataire", "Jin", "--periode", "2026-08",
+            "--dossier", str(tmp_path))
+        sortie = capsys.readouterr().out
+        assert "390,00" in sortie          # loyer seul, charges annulees
+
+    def test_ligne_de_commande_prioritaire_sur_le_journal(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        self._journal(config_file, {"Jin": {"2026-09": {"charges": 20.0}}})
+
+        run(config_file, "--locataire", "Jin", "--periode", "2026-09",
+            "--charges", "99", "--dossier", str(tmp_path))
+        assert "489,00" in capsys.readouterr().out   # 390 + 99
+
+    def test_suivi_somme_les_montants_reels(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Un mois sans charges ne compte pas comme un mois plein."""
+        assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
+                   "2026-09", "--jusqu-a", "2026-10", "--dossier", str(tmp_path)) == 0
+        avant = next(
+            l for l in capsys.readouterr().out.splitlines()
+            if l.strip().startswith("Attendu")
+        )
+        assert "901,00" in avant          # 2 x 450,50
+
+        self._journal(config_file, {"Jin": {"2026-09": {"absent": True}}})
+        assert run(config_file, "suivi", "--locataire", "Jin", "--depuis",
+                   "2026-09", "--jusqu-a", "2026-10", "--dossier", str(tmp_path)) == 0
+        apres = next(
+            l for l in capsys.readouterr().out.splitlines()
+            if l.strip().startswith("Attendu")
+        )
+        assert "840,50" in apres          # 390 + 450,50
+
+    def test_journal_affiche(
+        self, config_file: Path, capsys
+    ) -> None:
+        self._journal(
+            config_file,
+            {"Jin": {"2026-09": {"charges": 20.0, "motif": "Pas de recharge."}}},
+        )
+        assert run(config_file, "ajustements") == 0
+        sortie = capsys.readouterr().out
+        assert "2026-09" in sortie
+        assert "Jingyi L." in sortie
+        assert "Pas de recharge." in sortie
+        assert "1 ajustement" in sortie
+
+    def test_journal_vide(self, config_file: Path, capsys) -> None:
+        assert run(config_file, "ajustements") == 0
+        assert "Aucun ajustement" in capsys.readouterr().out
+
+    def test_journal_filtre_par_locataire(
+        self, config_file: Path, capsys
+    ) -> None:
+        self._journal(
+            config_file,
+            {
+                "Jin": {"2026-09": {"charges": 20.0}},
+                "Matilde": {"2026-09": {"absent": True}},
+            },
+        )
+        assert run(config_file, "ajustements", "--locataire", "Jin") == 0
+        sortie = capsys.readouterr().out
+        assert "Jingyi L." in sortie
+        assert "Matilde A." not in sortie
+
+    def test_journal_du_depot_ignore_par_les_autres_configs(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Le journal se lit a cote du config.yaml retenu, pas dans le cwd."""
+        assert run(config_file, "ajustements") == 0
+        assert "Aucun ajustement" in capsys.readouterr().out
