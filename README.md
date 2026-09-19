@@ -126,6 +126,7 @@ facultatif :
 | `rent` / `charges` | il faut passer `--loyer` et `--charges` |
 | `birth_date` / `birth_place` | l'attestation d'hébergement est refusée |
 | `lease_start` | il faut passer `--depuis` (domicile) ou `--recu-le` (caution) |
+| `lease_end` | le locataire est réputé en place : aucune vacance calculée |
 | `room` | la chambre n'est pas située (« R+2 », « RDC jardin ») |
 | `share` | pas de quote-part pour répartir les charges annuelles |
 
@@ -189,6 +190,40 @@ Matilde   Matilde Aranibar Campero      anzin    R+2           22,39 %  340,00 �
 Henri     Henri Fournet                 vals     R+2           25,98 %  390,00 € + 80,00 € de charges
 ```
 
+### Factures d'électricité
+
+Les factures TotalEnergies se déposent dans `<maison>/Charges/<année>/` et se
+lisent automatiquement :
+
+```bash
+quittances factures --maison anzin
+```
+
+```
+  totalenergies_anzin_202609.pdf  29/07/2026 - 28/09/2026  69,46 € TTC
+     Abonnement     fixe        19,99 € HT  29/08 - 28/09
+     Consommation   variable    27,44 € HT  29/07 - 28/08
+     CTA            fixe         2,45 € HT  29/08 - 28/09
+     Accise         variable     8,00 € HT  29/07 - 28/08
+```
+
+**L'abonnement est facturé d'avance, la consommation à terme échu** : les deux
+périodes sont décalées d'un mois, et un mois calendaire est donc couvert par
+deux factures. Chaque poste est proratisé sur sa propre période, puis majoré de
+la TVA au taux de la facture.
+
+Les montants extraits sont **confrontés aux totaux imprimés**. Une facture dont
+les postes ne reconstituent pas le total TTC est rejetée : une extraction
+silencieusement fausse alimenterait une répartition de charges.
+
+Un mois n'est **complet** que si les deux factures qui l'encadrent sont
+présentes. Les mois partiels sont signalés et jamais inscrits — ils
+sous-évalueraient les charges. `--ecrire` inscrit les mois complets dans
+`charges.yaml`.
+
+La catégorie `fixe` (abonnement, CTA) reste due par un locataire absent ; la
+catégorie `variable` (consommation, accise) ne l'est pas.
+
 ### Charges d'une maison
 
 Les charges se déclarent à deux endroits, selon qu'elles bougent ou non.
@@ -237,6 +272,15 @@ vals - 14 avenue de Condé, 59300 Valenciennes
 
 Le `~` distingue un montant **présumé** d'un montant **relevé** : sans lui, une
 référence non vérifiée se confondrait avec une facture réelle.
+
+Une ligne **Bailleur** apparaît quand une part n'a pu être imputée — chambre
+vacante, locataire entré en cours de période ou déjà parti (`lease_end`). C'est
+la mesure du coût d'une vacance :
+
+```
+    Eliot F.        20,43 %     73,14 €
+    Bailleur        vacance     78,01 €
+```
 
 C'est un **rapport, pas une régularisation** : il montre ce que coûte la maison
 et ce que chacun supporterait au prorata de sa surface. Il ne compare rien aux
@@ -490,6 +534,7 @@ python -m pytest
 | `quittances/config.py` | lecture et validation de `config.yaml` |
 | `quittances/ajustements.py` | journal des écarts mensuels au bail |
 | `quittances/charges.py` | charges d'une maison et leur répartition |
+| `quittances/factures.py` | lecture des factures d'électricité |
 | `quittances/documents.py` | modèles métier, calculs, chemins de sortie |
 | `quittances/pdf.py` | rendu PDF (ReportLab) |
 | `quittances/emails.py` | mise en forme HTML des emails |

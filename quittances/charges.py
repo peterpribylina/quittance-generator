@@ -151,22 +151,46 @@ def _montant(valeur: Any, contexte: str) -> Decimal:
 
 
 def repartition(
-    bien: Property, total: Decimal, occupants: list
-) -> list[tuple[Any, Decimal]]:
-    """Repartit un total entre les occupants, au prorata de leur quote-part.
+    bien: Property,
+    total: Decimal,
+    occupants: list,
+    debut: date | None = None,
+    fin: date | None = None,
+) -> tuple[list[tuple[Any, Decimal]], Decimal]:
+    """Repartit un total au prorata des quotes-parts et de l'occupation.
 
-    Le dernier occupant absorbe l'ecart d'arrondi, pour que la somme des parts
-    fasse exactement le total reparti — un centime perdu a chaque ligne finirait
-    par se voir sur un exercice.
+    Renvoie `(parts, reliquat)`. Le **reliquat** est ce qui n'a pu etre impute
+    a personne : chambre vacante, locataire entre en cours de periode ou deja
+    parti. Il reste a la charge du bailleur, et doit se voir — c'est lui qui
+    mesure le cout d'une vacance.
+
+    Sans periode, tout le monde est repute present toute la periode : la
+    repartition se fait alors sur les seules quotes-parts.
     """
     avec_part = [t for t in occupants if t.share is not None]
     if not avec_part:
-        return []
+        return [], total
+
     parts: list[tuple[Any, Decimal]] = []
     cumul = Decimal("0.00")
-    for tenant in avec_part[:-1]:
-        montant = (total * tenant.share / Decimal("100")).quantize(Decimal("0.01"))
+    for tenant in avec_part:
+        montant = total * tenant.share / Decimal("100")
+        if debut is not None and fin is not None:
+            jours_periode = (fin - debut).days + 1
+            if jours_periode <= 0:
+                montant = Decimal("0")
+            else:
+                montant = montant * tenant.jours_occupes(debut, fin) / jours_periode
+        montant = montant.quantize(Decimal("0.01"))
         parts.append((tenant, montant))
         cumul += montant
-    parts.append((avec_part[-1], (total - cumul).quantize(Decimal("0.01"))))
-    return parts
+
+    reliquat = (total - cumul).quantize(Decimal("0.01"))
+    if debut is None or fin is None:
+        # Sans periode, l'ecart ne peut venir que de l'arrondi : le dernier
+        # occupant l'absorbe plutot que d'inventer une part bailleur.
+        if parts and reliquat:
+            dernier, montant = parts[-1]
+            parts[-1] = (dernier, montant + reliquat)
+            reliquat = Decimal("0.00")
+    return parts, reliquat

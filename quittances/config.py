@@ -166,6 +166,9 @@ class Tenant:
     birth_place: str | None = None
     # Entree dans les lieux, pour l'attestation de domicile.
     lease_start: date | None = None
+    # Sortie des lieux. Absente tant que le locataire est en place ; une fois
+    # renseignee, les charges cessent de lui etre imputees au-dela.
+    lease_end: date | None = None
     # Situation de la chambre : « R+2 », « RDC jardin »...
     room: str | None = None
     # Quote-part de surface, en pourcentage du total de la maison. Sert a
@@ -206,6 +209,16 @@ class Tenant:
     def dwelling(self) -> str:
         return self.property.dwelling
 
+    def jours_occupes(self, debut: date, fin: date) -> int:
+        """Jours d'occupation dans la periode, bornes incluses.
+
+        Un bail qui commence apres le debut ou se termine avant la fin reduit
+        d'autant la part de charges imputable au locataire.
+        """
+        entree = max(debut, self.lease_start) if self.lease_start else debut
+        sortie = min(fin, self.lease_end) if self.lease_end else fin
+        return max(0, (sortie - entree).days + 1)
+
     @property
     def share_label(self) -> str:
         """« 22,39 % », espace insecable avant le signe."""
@@ -241,6 +254,7 @@ class Tenant:
             birth_date=data.get("birth_date") or None,
             birth_place=data.get("birth_place") or None,
             lease_start=_optional_date(data, "lease_start", ctx),
+            lease_end=_optional_date(data, "lease_end", ctx),
             room=str(data["room"]) if data.get("room") else None,
             share=_optional_amount(data, "share", ctx),
         )

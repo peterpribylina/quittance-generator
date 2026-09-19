@@ -15,7 +15,7 @@ local, sur Windows.
 
 ```bash
 python -m pip install -e ".[dev]"   # installe le paquet et les outils de test
-python -m pytest                    # 255 tests
+python -m pytest                    # 258 tests
 python -m pytest tests/test_pdf.py::test_quittance_produit_un_pdf_a4   # un seul test
 quittances locataires               # verifie que config.yaml se charge
 ```
@@ -28,7 +28,7 @@ Quatre couches, du bas vers le haut :
 
 | Couche | Modules | Dépendances |
 |---|---|---|
-| Données | `config.py`, `ajustements.py`, `charges.py`, `formatting.py` | aucune |
+| Données | `config.py`, `ajustements.py`, `charges.py`, `factures.py`, `formatting.py` | aucune |
 | Métier | `documents.py` | config, formatting |
 | Effets | `pdf.py`, `emails.py`, `mailer.py` | config, documents |
 | Orchestration | `cli.py` | tout |
@@ -84,6 +84,24 @@ civilité est omise du document (« Reçu de : MORÓN Elsa ») et l'attestation 
 (« Aranibar Campero », « Dos Santos »). L'ancien `fullName.split(" ")[1]`
 tronquait ces noms — ne pas réintroduire de découpage sur l'espace.
 
+## Factures d'electricite
+
+`factures.py` lit les PDF TotalEnergies. L'**abonnement est facture d'avance**
+(29/08 - 28/09), la **consommation a terme echu** (29/07 - 28/08) : les periodes
+sont decalees d'un mois, et un mois calendaire depend de deux factures. Chaque
+poste porte donc sa propre periode et se proratise dessus.
+
+L'extraction est **confrontee aux totaux imprimes** : si les postes ne
+reconstituent pas le TTC a 2 centimes pres, `lire_facture` echoue. Un poste
+manque fausserait une repartition sans que rien ne le signale.
+
+Les postes sont classes `FIXE` (abonnement, CTA — dus meme absent) ou `VARIABLE`
+(consommation, accise). La CTA est rattachee a l'abonnement et l'accise a la
+consommation, bien qu'elles figurent sous un meme total sur la facture.
+
+`mois_complets` refuse d'inscrire un mois que les factures ne couvrent pas de
+bout en bout pour les deux categories.
+
 ## Charges d'une maison
 
 Deux natures de charges, deux emplacements : les **fixes** dans `config.yaml`
@@ -95,7 +113,12 @@ Le rapport marque d'un `~` les montants **presumes**. Confondre une reference
 non verifiee avec une facture reelle fausserait une regularisation sans que rien
 ne le signale.
 
-`repartition` fait absorber l'ecart d'arrondi par le dernier occupant, pour que
+`repartition` renvoie `(parts, reliquat)`. Le **reliquat** est ce qui n'a pu
+etre impute — chambre vacante, locataire entre en cours de periode ou parti
+(`lease_end`) — et s'affiche sur une ligne **Bailleur** : c'est la mesure du
+cout d'une vacance, et elle doit se voir.
+
+Sans periode, l'ecart d'arrondi est absorbe par le dernier occupant, pour que
 la somme des parts fasse **exactement** le total : un centime perdu par ligne
 finirait par se voir sur un exercice. Un test le verifie sur plusieurs totaux.
 

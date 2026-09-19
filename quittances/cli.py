@@ -22,6 +22,7 @@ from typing import Sequence
 
 from .ajustements import Ajustement, Ajustements
 from .charges import Charges, repartition
+from .factures import FactureError, lire_facture, mois_complets, prorata_mensuel
 from .config import Config, ConfigError, Tenant
 from .documents import (
     Attestation,
@@ -222,6 +223,13 @@ def printable(texte: str) -> str:
     except (UnicodeEncodeError, LookupError):
         return texte.encode(encodage, errors="replace").decode(encodage)
     return texte
+
+
+def _fin_periode(mois: date) -> date:
+    """Dernier jour du mois, pour borner une periode de repartition."""
+    from datetime import timedelta
+
+    return (mois.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
 
 
 MOIS_PAR_DEFAUT = 12  # une annee de bail
@@ -544,6 +552,127 @@ def cmd_relance(config: Config, args: argparse.Namespace) -> int:
     return 1 if erreurs else 0
 
 
+def cmd_factures(config: Config, args: argparse.Namespace) -> int:
+    """Lit les factures deposees et en tire le cout mensuel de chaque maison.
+
+    L'abonnement etant facture d'avance et la consommation a terme echu, un
+    mois calendaire n'est documente qu'une fois les deux factures qui
+    l'encadrent presentes. Les mois a demi couverts sont signales et jamais
+    ecrits : les inscrire sous-evaluerait les charges.
+    """
+    if args.maison:
+        if args.maison not in config.properties:
+            connus = ", ".join(sorted(config.properties))
+            raise CliError(f"Maison « {args.maison} » inconnue. Maisons : {connus}.")
+        biens = [config.properties[args.maison]]
+    else:
+        biens = [b for b in config.properties.values() if b.charges_folder]
+
+    a_ecrire: dict[str, dict[str, dict[str, str]]] = {}
+    erreurs = 0
+    for bien in biens:
+        if bien.charges_folder is None:
+            print(
+                f"{bien.key} : « charges_folder » non renseigne dans config.yaml.",
+                file=sys.stderr,
+            )
+            erreurs += 1
+            continue
+        fichiers = sorted(Path(bien.charges_folder).rglob("*.pdf"))
+        print(f"{bien.key} - {len(fichiers)} facture(s) dans {bien.charges_folder}")
+        if not fichiers:
+            print("  Aucune facture deposee.\n")
+            continue
+
+        factures = []
+        for fichier in fichiers:
+            try:
+                factures.append(lire_facture(fichier))
+            except FactureError as exc:
+                erreurs += 1
+                print(f"  {exc}", file=sys.stderr)
+        if not factures:
+            print()
+            continue
+
+        for facture in factures:
+            debut, fin = facture.periode
+            print(
+                printable(
+                    f"  {facture.fichier.name}  {debut:%d/%m/%Y} - {fin:%d/%m/%Y}  "
+                    f"{format_amount(facture.total_ttc)} TTC"
+                )
+            )
+            for poste in facture.postes:
+                print(
+                    printable(
+                        f"     {poste.libelle.ljust(14)} {poste.categorie.ljust(9)}"
+                        f"{format_amount(poste.montant_ht).rjust(10)} HT  "
+                        f"{poste.debut:%d/%m} - {poste.fin:%d/%m}"
+                    )
+                )
+
+        cumul: dict[date, dict[str, Decimal]] = {}
+        for facture in factures:
+            for mois, postes in prorata_mensuel(facture).items():
+                for libelle, montant in postes.items():
+                    cumul.setdefault(mois, {})
+                    cumul[mois][libelle] = cumul[mois].get(
+                        libelle, Decimal("0.00")
+                    ) + montant
+        complets = mois_complets(factures)
+
+        print("\n  Cout mensuel reconstitue (TTC) :")
+        for mois in sorted(cumul):
+            total = sum(cumul[mois].values(), Decimal("0.00"))
+            etat = "" if complets.get(mois) else "   INCOMPLET"
+            print(
+                printable(
+                    f"    {mois:%Y-%m}  {format_amount(total).rjust(10)}{etat}"
+                )
+            )
+            if complets.get(mois):
+                a_ecrire.setdefault(bien.key, {})[f"{mois:%Y-%m}"] = {
+                    libelle.lower(): f"{montant:.2f}"
+                    for libelle, montant in sorted(cumul[mois].items())
+                }
+        if not any(complets.values()):
+            print(
+                "    Aucun mois complet : il manque la facture qui couvre "
+                "l'autre moitie de la periode."
+            )
+        print()
+
+    if args.ecrire and a_ecrire:
+        _ecrire_charges(config, a_ecrire)
+    elif args.ecrire:
+        print("Rien a ecrire : aucun mois complet.")
+    elif a_ecrire:
+        total = sum(len(m) for m in a_ecrire.values())
+        print(f"{total} mois complet(s) - ajoutez --ecrire pour les inscrire "
+              "dans charges.yaml.")
+    return 1 if erreurs else 0
+
+
+def _ecrire_charges(config: Config, nouvelles: dict) -> None:
+    """Fusionne les mois releves dans charges.yaml, sans ecraser le reste."""
+    import yaml
+
+    chemin = config.source.parent / "charges.yaml"
+    existant = {}
+    if chemin.is_file():
+        existant = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+    for maison, mois in nouvelles.items():
+        existant.setdefault(maison, {})
+        existant[maison].update(mois)
+    chemin.write_text(
+        yaml.safe_dump(existant, allow_unicode=True, sort_keys=True),
+        encoding="utf-8",
+    )
+    total = sum(len(m) for m in nouvelles.values())
+    print(f"{total} mois inscrit(s) dans {chemin}.")
+
+
 def cmd_charges(config: Config, args: argparse.Namespace) -> int:
     """Charges reelles d'une maison, mois par mois, et leur repartition.
 
@@ -620,8 +749,10 @@ def cmd_charges(config: Config, args: argparse.Namespace) -> int:
         )
         print("  ~ montant de reference, non releve sur facture")
 
-        parts = repartition(bien, total_periode, occupants)
-        if parts:
+        parts, reliquat = repartition(
+            bien, total_periode, occupants, debut, _fin_periode(fin)
+        )
+        if parts or reliquat:
             print("\n  Repartition au prorata de la surface :")
             for tenant, montant in parts:
                 print(
@@ -629,6 +760,15 @@ def cmd_charges(config: Config, args: argparse.Namespace) -> int:
                         f"    {tenant.short_name.ljust(13)} "
                         f"{tenant.share_label.rjust(8)}  "
                         f"{format_amount(montant).rjust(10)}"
+                    )
+                )
+            if reliquat:
+                # Ce qui n'est impute a personne reste a la charge du bailleur :
+                # c'est la mesure du cout d'une chambre vacante.
+                print(
+                    printable(
+                        f"    {'Bailleur'.ljust(13)} {'vacance'.rjust(8)}  "
+                        f"{format_amount(reliquat).rjust(10)}"
                     )
                 )
         elif occupants:
@@ -1031,6 +1171,13 @@ def build_parser() -> argparse.ArgumentParser:
                            help="envoie les rappels (sinon, simple apercu)")
     p_relance.set_defaults(handler=cmd_relance)
 
+    p_factures = sous.add_parser(
+        "factures", help="lit les factures deposees et en tire le cout mensuel")
+    p_factures.add_argument("--maison", metavar="CLE")
+    p_factures.add_argument("--ecrire", action="store_true",
+                            help="inscrit les mois complets dans charges.yaml")
+    p_factures.set_defaults(handler=cmd_factures)
+
     p_charges = sous.add_parser(
         "charges", help="charges reelles d'une maison et leur repartition")
     p_charges.add_argument("--maison", metavar="CLE")
@@ -1091,7 +1238,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 COMMANDES = (
     "quittance", "attestation", "domicile", "locataires", "suivi", "relance",
-    "assurance", "caution", "ajustements", "charges",
+    "assurance", "caution", "ajustements", "charges", "factures",
 )
 
 

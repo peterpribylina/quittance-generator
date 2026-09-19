@@ -96,9 +96,9 @@ def test_repartition_au_prorata(config_avec_charges: Config) -> None:
     ]
     # Tenant n'est plus hachable depuis que Property porte un dictionnaire :
     # on indexe par cle, pas par objet.
-    montants = {
-        t.key: m for t, m in repartition(bien, Decimal("1000.00"), occupants)
-    }
+    parts, reliquat = repartition(bien, Decimal("1000.00"), occupants)
+    montants = {t.key: m for t, m in parts}
+    assert reliquat == Decimal("0.00")
     assert montants["Jin"] == Decimal("600.00")
     assert montants["Matilde"] == Decimal("400.00")
 
@@ -112,14 +112,16 @@ def test_repartition_somme_exactement_le_total(
         t for t in config_avec_charges.tenants.values() if t.property.key == "anzin"
     ]
     for total in ("100.01", "333.33", "1234.57", "0.01"):
-        parts = repartition(bien, Decimal(total), occupants)
-        assert sum(m for _, m in parts) == Decimal(total), total
+        parts, reliquat = repartition(bien, Decimal(total), occupants)
+        assert sum(m for _, m in parts) + reliquat == Decimal(total), total
 
 
 def test_repartition_sans_quote_part(config: Config) -> None:
     bien = config.properties["anzin"]
     occupants = [t for t in config.tenants.values() if t.property.key == "anzin"]
-    assert repartition(bien, Decimal("100"), occupants) == []
+    parts, reliquat = repartition(bien, Decimal("100"), occupants)
+    assert parts == []
+    assert reliquat == Decimal("100")     # tout reste au bailleur
 
 
 def test_total_des_charges_fixes(config_avec_charges: Config) -> None:
@@ -133,3 +135,58 @@ def test_charge_fixe_negative_refusee(raw_config: dict, tmp_path: Path) -> None:
     raw_config["properties"]["anzin"]["monthly_charges"] = {"eau": -5}
     with pytest.raises(ConfigError, match="negatif"):
         Config.from_dict(raw_config, base_dir=tmp_path)
+
+
+def test_reliquat_bailleur_si_chambre_vacante(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    """Un locataire parti en cours de periode laisse sa part au bailleur."""
+    raw_config["tenants"]["Jin"]["share"] = 50.0
+    raw_config["tenants"]["Jin"]["lease_start"] = "2026-01-01"
+    raw_config["tenants"]["Matilde"]["share"] = 50.0
+    raw_config["tenants"]["Matilde"]["lease_start"] = "2026-01-01"
+    raw_config["tenants"]["Matilde"]["lease_end"] = "2026-01-15"
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    bien = config.properties["anzin"]
+    occupants = [t for t in config.tenants.values() if t.property.key == "anzin"]
+
+    parts, reliquat = repartition(
+        bien, Decimal("1000.00"), occupants, date(2026, 1, 1), date(2026, 1, 31)
+    )
+    montants = {t.key: m for t, m in parts}
+    assert montants["Jin"] == Decimal("500.00")          # present tout le mois
+    assert montants["Matilde"] == Decimal("241.94")      # 15 jours sur 31
+    assert reliquat == Decimal("258.06")                 # chambre vacante
+    assert sum(montants.values()) + reliquat == Decimal("1000.00")
+
+
+def test_pas_de_reliquat_si_tous_presents(raw_config: dict, tmp_path: Path) -> None:
+    raw_config["tenants"]["Jin"]["share"] = 50.0
+    raw_config["tenants"]["Jin"]["lease_start"] = "2025-09-01"
+    raw_config["tenants"]["Matilde"]["share"] = 50.0
+    raw_config["tenants"]["Matilde"]["lease_start"] = "2025-09-01"
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    bien = config.properties["anzin"]
+    occupants = [t for t in config.tenants.values() if t.property.key == "anzin"]
+
+    _, reliquat = repartition(
+        bien, Decimal("1000.00"), occupants, date(2026, 1, 1), date(2026, 1, 31)
+    )
+    assert reliquat == Decimal("0.00")
+
+
+def test_locataire_pas_encore_entre(raw_config: dict, tmp_path: Path) -> None:
+    raw_config["tenants"]["Jin"]["share"] = 50.0
+    raw_config["tenants"]["Jin"]["lease_start"] = "2026-02-01"
+    raw_config["tenants"]["Matilde"]["share"] = 50.0
+    raw_config["tenants"]["Matilde"]["lease_start"] = "2025-09-01"
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    bien = config.properties["anzin"]
+    occupants = [t for t in config.tenants.values() if t.property.key == "anzin"]
+
+    parts, reliquat = repartition(
+        bien, Decimal("1000.00"), occupants, date(2026, 1, 1), date(2026, 1, 31)
+    )
+    montants = {t.key: m for t, m in parts}
+    assert montants["Jin"] == Decimal("0.00")
+    assert reliquat == Decimal("500.00")
