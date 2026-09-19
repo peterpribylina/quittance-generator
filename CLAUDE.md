@@ -15,7 +15,7 @@ local, sur Windows.
 
 ```bash
 python -m pip install -e ".[dev]"   # installe le paquet et les outils de test
-python -m pytest                    # 232 tests
+python -m pytest                    # 235 tests
 python -m pytest tests/test_pdf.py::test_quittance_produit_un_pdf_a4   # un seul test
 quittances locataires               # verifie que config.yaml se charge
 ```
@@ -103,6 +103,14 @@ ordre pour que le suivi somme les montants reels.
 `absent: true` met les **charges a zero**, jamais le loyer : la chambre reste
 reservee. Une valeur `charges` explicite l'emporte, une absence pouvant laisser
 un abonnement a la charge du locataire.
+
+Les montants du journal sont **ceux a facturer**, jamais des remises a
+soustraire : `charges: 70.00` produit 70 € de charges.
+
+Editer le journal **ne reecrit aucun PDF**. `_journal_plus_recent` compare la
+date du fichier a celle de la quittance existante et avertit, faute de quoi on
+relance la commande, on lit « PDF deja present » et on envoie l'ancien montant.
+L'avertissement se limite aux mois effectivement ajustes.
 
 Un locataire inconnu ou un champ mal orthographie fait **echouer le
 chargement**. Ignorer silencieusement « charge » au lieu de « charges »

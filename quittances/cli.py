@@ -381,6 +381,26 @@ def cmd_suivi(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def _journal_plus_recent(
+    pdf: Path, ajustement: Ajustement | None, ajustements: Ajustements
+) -> bool:
+    """Le PDF existant date-t-il d'avant la derniere retouche du journal ?
+
+    Modifier un montant dans `ajustements.yaml` ne reecrit aucun document :
+    sans cet avertissement, on relance la commande, on lit « PDF deja present »
+    et on envoie l'ancien montant sans s'en apercevoir.
+
+    Restreint aux mois effectivement ajustes, pour ne pas crier a chaque fois
+    que le journal bouge pour un autre locataire.
+    """
+    if ajustement is None or ajustements.source is None:
+        return False
+    try:
+        return ajustements.source.stat().st_mtime > pdf.stat().st_mtime
+    except OSError:
+        return False
+
+
 def cmd_quittance(config: Config, args: argparse.Namespace) -> int:
     ajustements = args.ajustements
     periode = parse_period(args.periode)
@@ -428,6 +448,12 @@ def cmd_quittance(config: Config, args: argparse.Namespace) -> int:
 
         if chemin.exists() and not args.forcer:
             print("  PDF deja present (utilisez --forcer pour regenerer)")
+            if _journal_plus_recent(chemin, ajustement, ajustements):
+                print(
+                    "  ATTENTION : le journal a ete modifie apres ce PDF, qui "
+                    "peut porter d'anciens montants. Relancez avec --forcer.",
+                    file=sys.stderr,
+                )
         else:
             render_quittance(quittance, config, chemin)
             print("  PDF genere")

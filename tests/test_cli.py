@@ -946,3 +946,61 @@ class TestAjustementsCli:
         """Le journal se lit a cote du config.yaml retenu, pas dans le cwd."""
         assert run(config_file, "ajustements") == 0
         assert "Aucun ajustement" in capsys.readouterr().out
+
+    def test_avertit_si_le_journal_a_change_apres_le_pdf(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Editer un montant ne reecrit aucun PDF : il faut le dire."""
+        import os
+        import time
+
+        self._journal(config_file, {"Jin": {"2026-09": {"charges": 20.0}}})
+        run(config_file, "--locataire", "Jin", "--periode", "2026-09",
+            "--dossier", str(tmp_path))
+        capsys.readouterr()
+
+        # Le journal est retouche apres coup.
+        pdf = next(tmp_path.rglob("*.pdf"))
+        journal = config_file.parent / "ajustements.yaml"
+        plus_tard = time.time() + 10
+        os.utime(journal, (plus_tard, plus_tard))
+
+        run(config_file, "--locataire", "Jin", "--periode", "2026-09",
+            "--dossier", str(tmp_path))
+        capture = capsys.readouterr()
+        assert "deja present" in capture.out
+        assert "ATTENTION" in capture.err
+        assert "--forcer" in capture.err
+
+    def test_pas_d_avertissement_sans_ajustement(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        """Le journal bouge pour un autre locataire : rien a signaler ici."""
+        import os
+        import time
+
+        self._journal(config_file, {"Matilde": {"2026-09": {"absent": True}}})
+        run(config_file, "--locataire", "Jin", "--periode", "2026-09",
+            "--dossier", str(tmp_path))
+        capsys.readouterr()
+
+        journal = config_file.parent / "ajustements.yaml"
+        plus_tard = time.time() + 10
+        os.utime(journal, (plus_tard, plus_tard))
+
+        run(config_file, "--locataire", "Jin", "--periode", "2026-09",
+            "--dossier", str(tmp_path))
+        assert "ATTENTION" not in capsys.readouterr().err
+
+    def test_forcer_regenere_avec_le_nouveau_montant(
+        self, config_file: Path, tmp_path: Path, capsys
+    ) -> None:
+        self._journal(config_file, {"Jin": {"2026-09": {"charges": 20.0}}})
+        run(config_file, "--locataire", "Jin", "--periode", "2026-09",
+            "--dossier", str(tmp_path))
+        capsys.readouterr()
+
+        self._journal(config_file, {"Jin": {"2026-09": {"charges": 70.0}}})
+        run(config_file, "--locataire", "Jin", "--periode", "2026-09",
+            "--dossier", str(tmp_path), "--forcer")
+        assert "460,00" in capsys.readouterr().out      # 390 + 70

@@ -178,8 +178,20 @@ MathiasP:
 | `absent` | locataire absent : charges à zéro, sauf valeur explicite |
 | `motif` | la raison, reprise dans l'email au locataire |
 
+Les montants sont **ceux à facturer**, pas des remises : `charges: 70.00`
+produit une quittance à 70 € de charges, quel que soit le montant du bail.
+
 **Le loyer reste dû en cas d'absence** : la chambre demeure réservée. Seules les
 charges tombent.
+
+Modifier le journal **ne réécrit aucun PDF déjà produit**. La commande le
+signale quand le journal est plus récent que la quittance existante :
+
+```
+  PDF deja present (utilisez --forcer pour regenerer)
+  ATTENTION : le journal a ete modifie apres ce PDF, qui peut porter
+  d'anciens montants. Relancez avec --forcer.
+```
 
 Les montants suivent cet ordre de priorité : `--loyer`/`--charges` en ligne de
 commande, puis l'ajustement du mois, puis le bail. Le suivi somme les montants
