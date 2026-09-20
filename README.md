@@ -385,6 +385,43 @@ jours, et la part non couverte remonte sur la ligne Bailleur :
     preavis: false        # sans preavis : septembre est proratisé 19/30
 ```
 
+#### Suppléments propres à un locataire
+
+Une recharge de voiture électrique, un radiateur de plus : la consommation est
+causée par une personne, pas par des mètres carrés. La répartir à la surface la
+ferait porter par les autres.
+
+```yaml
+  MathiasP:
+    charges_dediees:
+      - groupe: Électricité
+        montant: 20.00
+        motif: Recharge du véhicule électrique
+```
+
+Le montant est **mensuel**, prélevé sur le coût du groupe **avant** répartition ;
+le reste se partage aux quotes-parts inchangées. Tenir les 100 % ne demande donc
+aucun calcul : ils restent 100 %, appliqués à un montant diminué.
+
+C'est le point qui fait préférer ce mécanisme à une seconde grille de
+pourcentages. Une part d'électricité relevée à 27,92 % suivrait la facture : un
+hiver froid doublerait le supplément d'un véhicule qui n'aurait rien consommé de
+plus. Un montant fixe ne bouge pas avec le chauffage.
+
+Le supplément se proratise aux jours occupés — partir le 15 ne fait pas recharger
+sa voiture jusqu'au 30 — et il est plafonné au coût du groupe pour le mois : on
+ne peut pas imputer plus que la facture. Sur le document, il a sa propre ligne
+avec son motif, sans quote-part ni jours, puisqu'il n'est pas réparti :
+
+```
+  Électricité         2 275,20 €   25,98 %   365/365     591,10 €
+  Chauffage supplémentaire (un radiateur et demi)        120,00 €
+  Imputé directement, non réparti entre les locataires.
+```
+
+La colonne MAISON porte alors le montant **partagé**, déduction faite : c'est lui
+qui se réconcilie avec la quote-part.
+
 #### Gestes et retenues
 
 Tout ne se calcule pas. Un geste commercial, une retenue pour dégradations : ces

@@ -7,6 +7,7 @@ dur dans les sources, contrairement a l'ancien `helper.js`.
 from __future__ import annotations
 
 import os
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -58,6 +59,12 @@ def _optional_amount(mapping: Mapping[str, Any], key: str, context: str) -> Deci
         raise ConfigError(f"{context} : {exc}") from exc
 
 
+def _sans_accents(texte: str) -> str:
+    """Compare des intitules saisis a la main sans buter sur les accents."""
+    decompose = unicodedata.normalize("NFD", texte.strip().casefold())
+    return "".join(c for c in decompose if unicodedata.category(c) != "Mn")
+
+
 def _montant_positif(valeur: Any, contexte: str) -> Decimal:
     try:
         montant = parse_amount(valeur)
@@ -68,19 +75,19 @@ def _montant_positif(valeur: Any, contexte: str) -> Decimal:
     return montant
 
 
-def _lignes_manuelles(data: Mapping[str, Any], ctx: str) -> list[Any]:
-    """Valide la forme de `lignes_manuelles` avant de la detailler.
+def _liste(data: Mapping[str, Any], cle: str, ctx: str) -> list[Any]:
+    """Valide la forme d'un champ-liste avant de le detailler.
 
     Un mapping au lieu d'une liste est l'erreur naturelle quand on ecrit du
     YAML a la main : elle doit se dire, pas se traduire en « champ inconnu ».
     """
-    brut = data.get("lignes_manuelles")
+    brut = data.get(cle)
     if brut in (None, ""):
         return []
     if not isinstance(brut, list):
         raise ConfigError(
-            f"{ctx}.lignes_manuelles : une liste est attendue. "
-            "Chaque entree porte date, libelle et montant, prefixee d'un tiret."
+            f"{ctx}.{cle} : une liste est attendue. Chaque entree est un bloc "
+            "prefixe d'un tiret."
         )
     return brut
 
@@ -226,6 +233,79 @@ class LigneManuelle:
         return cls(date=quand, libelle=libelle, montant=montant)
 
 
+# Groupes de charges sur lesquels une charge dediee peut porter. Ecrits ici et
+# non deduits de `charges.groupe`, qui rabat tout intitule inconnu sur
+# « Electricite » : une faute de frappe doit echouer, pas se deviner.
+GROUPES_CHARGES = ("Eau", "Internet", "Électricité")
+
+
+def _groupe_declare(valeur: Any, contexte: str) -> str:
+    """« electricite », « Électricité », « ELECTRICITE » -> « Électricité »."""
+    cherche = _sans_accents(str(valeur))
+    for connu in GROUPES_CHARGES:
+        if _sans_accents(connu) == cherche:
+            return connu
+    attendus = ", ".join(GROUPES_CHARGES)
+    raise ConfigError(
+        f"{contexte} : groupe « {valeur} » inconnu. Groupes : {attendus}."
+    )
+
+
+@dataclass(frozen=True)
+class ChargeDediee:
+    """Part d'une charge imputee a un seul locataire, avant toute repartition.
+
+    Un vehicule electrique recharge sur place, un radiateur de plus : la
+    consommation est causee par une personne, pas par des metres carres. La
+    repartir a la surface la ferait porter par les autres.
+
+    Le montant est **mensuel**, et se prorate aux jours d'occupation : partir
+    le 15 ne fait pas recharger sa voiture jusqu'au 30.
+
+    Tenir les 100 % ne demande alors aucun calcul : la somme dediee est
+    prelevee sur le cout du groupe, et le **reste** se repartit aux
+    quotes-parts inchangees. Une seconde grille de pourcentages aurait suivi la
+    facture — un hiver froid aurait double le supplement d'un vehicule qui
+    n'aurait rien consomme de plus.
+    """
+
+    groupe: str
+    montant: Decimal
+    motif: str
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any], contexte: str) -> "ChargeDediee":
+        if not isinstance(data, Mapping):
+            raise ConfigError(
+                f"{contexte} : un mapping est attendu (groupe, montant, motif)."
+            )
+        inconnus = set(data) - {"groupe", "montant", "motif"}
+        if inconnus:
+            raise ConfigError(
+                f"{contexte} : champ(s) inconnu(s) {', '.join(sorted(inconnus))}. "
+                "Attendus : groupe, montant, motif."
+            )
+        motif = str(data.get("motif") or "").strip()
+        if not motif:
+            raise ConfigError(
+                f"{contexte} : « motif » est obligatoire. Un supplement non "
+                "explique sur le document du locataire genere une question."
+            )
+        montant = _optional_amount(data, "montant", contexte)
+        if montant is None:
+            raise ConfigError(f"{contexte} : « montant » est obligatoire.")
+        if montant <= 0:
+            raise ConfigError(
+                f"{contexte} : le montant doit etre positif. Une charge dediee "
+                "s'ajoute a la part d'un locataire, elle ne la diminue pas."
+            )
+        return cls(
+            groupe=_groupe_declare(_require(data, "groupe", contexte), contexte),
+            montant=montant,
+            motif=motif,
+        )
+
+
 @dataclass(frozen=True)
 class Tenant:
     key: str
@@ -257,6 +337,9 @@ class Tenant:
     # Montants portes a la main sur une regularisation, positifs en faveur du
     # locataire. Voir `LigneManuelle`.
     lignes_manuelles: tuple[LigneManuelle, ...] = ()
+    # Parts de charges imputees a lui seul avant repartition. Voir
+    # `ChargeDediee`.
+    charges_dediees: tuple[ChargeDediee, ...] = ()
 
     @property
     def full_name(self) -> str:
@@ -329,6 +412,29 @@ class Tenant:
             ligne for ligne in self.lignes_manuelles if debut <= ligne.date <= fin
         )
 
+    def charges_dediees_periode(
+        self, groupe: str, debut: date, fin: date
+    ) -> list[tuple[str, Decimal]]:
+        """(motif, montant) pour ce groupe sur la periode, au prorata des jours.
+
+        Le montant declare est mensuel. Partir le 15 ne fait pas recharger sa
+        voiture jusqu'au 30 : la somme suit les jours reellement occupes. Le
+        motif accompagne le montant jusqu'au document — un supplement sans
+        explication genere une question.
+        """
+        jours = (fin - debut).days + 1
+        if jours <= 0:
+            return []
+        part = Decimal(self.jours_occupes(debut, fin)) / Decimal(jours)
+        rendu = []
+        for charge in self.charges_dediees:
+            if charge.groupe != groupe:
+                continue
+            montant = (charge.montant * part).quantize(Decimal("0.01"))
+            if montant:
+                rendu.append((charge.motif, montant))
+        return rendu
+
     @property
     def share_label(self) -> str:
         """« 22,39 % », espace insecable avant le signe."""
@@ -370,7 +476,11 @@ class Tenant:
             share=_optional_amount(data, "share", ctx),
             lignes_manuelles=tuple(
                 LigneManuelle.from_dict(ligne, f"{ctx}.lignes_manuelles[{i}]")
-                for i, ligne in enumerate(_lignes_manuelles(data, ctx))
+                for i, ligne in enumerate(_liste(data, "lignes_manuelles", ctx))
+            ),
+            charges_dediees=tuple(
+                ChargeDediee.from_dict(ligne, f"{ctx}.charges_dediees[{i}]")
+                for i, ligne in enumerate(_liste(data, "charges_dediees", ctx))
             ),
         )
 

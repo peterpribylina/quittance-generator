@@ -334,17 +334,23 @@ def render_regularisation(
         if regul.prorata_applique
         else ""
     )
+    reserve = (
+        " Les suppléments qui vous sont propres sont imputés à part."
+        if regul.dediees
+        else ""
+    )
     _paragraph(
         canvas,
         f"Charges réelles du logement situé au {_bold(tenant.address)}, "
         f"réparties au prorata de la surface occupée "
-        f"({escape(tenant.share_label)}){prorata}.",
+        f"({escape(tenant.share_label)}){prorata}.{reserve}",
         MARGE, 322.0, DROITE - MARGE, CORPS_GAUCHE,
     )
 
     # Tableau : maison, quote-part, part du locataire.
     col_maison, col_part = DROITE - 320.0, DROITE - 210.0
     col_jours, col_du = DROITE - 110.0, DROITE
+    largeur_libelle = (DROITE - 70.0) - MARGE
     haut = 370.0
     _label(canvas, "Poste", MARGE, haut)
     _text_right(canvas, "MAISON", col_maison, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
@@ -371,6 +377,23 @@ def render_regularisation(
         )
         haut += 18.0
 
+    # Supplements imputes a une seule personne. Ils n'ont ni quote-part ni
+    # jours a montrer : les melanger aux postes partages rendrait la colonne
+    # PART incoherente, puisqu'ils ne sont justement pas partages.
+    if regul.dediees:
+        for motif, montant in regul.dediees:
+            replis = _wrap(canvas, motif, FONT, 9.5, largeur_libelle)
+            _text_right(canvas, format_amount(montant), col_du, haut, FONT, 9.5)
+            for repli in replis:
+                _text(canvas, repli, MARGE, haut, FONT, 9.5)
+                haut += 13.0
+            haut += 5.0
+        _text(
+            canvas, "Imputé directement, non réparti entre les locataires.",
+            MARGE, haut - 2.0, FONT, 7.5, GRIS_MOYEN,
+        )
+        haut += 12.0
+
     _rule(canvas, haut - 4.0)
     haut += 8.0
     for libelle, montant, gras in (
@@ -386,7 +409,6 @@ def render_regularisation(
     # sens : « Degradations 120,00 € » ne dirait pas si la somme est retenue ou
     # rendue. Les deux sont indispensables, d'ou la mention qui les suit.
     if regul.lignes:
-        largeur_libelle = (DROITE - 70.0) - MARGE
         for ligne in regul.lignes:
             replis = _wrap(canvas, ligne.libelle, FONT, 9.5, largeur_libelle)
             _text_right(

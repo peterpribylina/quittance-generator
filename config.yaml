@@ -149,6 +149,12 @@ tenants:
     charges: 70.00
 
   Henri:
+    # Un radiateur et demi la ou les autres chambres en ont un : le chauffage
+    # supplementaire ne se deduit pas de la surface.
+    charges_dediees:
+      - groupe: Électricité
+        montant: 10.00
+        motif: Chauffage supplémentaire (un radiateur et demi)
     title: M
     first_name: Henri
     last_name: Fournet
@@ -173,6 +179,13 @@ tenants:
     email: ef4100@yahoo.it
 
   MathiasP:
+    # Sa recharge gonfle l'electricite de la maison, que la repartition a la
+    # surface ferait porter par les quatre autres. Le supplement est impute
+    # avant repartition : les quotes-parts restent celles des metres carres.
+    charges_dediees:
+      - groupe: Électricité
+        montant: 20.00
+        motif: Recharge du véhicule électrique
     first_name: Mathias
     last_name: Pacheco
     property: vals

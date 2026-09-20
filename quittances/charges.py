@@ -233,12 +233,18 @@ class LigneRegularisation:
     """Ce qu'un locataire doit et ce qu'il a verse, sur une periode."""
 
     tenant: Any
-    reel: dict[str, Decimal]          # par groupe de postes
+    reel: dict[str, Decimal]          # par groupe de postes, apres deduction
     provisions: Decimal
+    # Supplements imputes a lui seul : motif -> montant sur la periode.
+    dediees: dict[str, Decimal] = field(default_factory=dict)
+
+    @property
+    def total_dediees(self) -> Decimal:
+        return sum(self.dediees.values(), Decimal("0.00"))
 
     @property
     def total_reel(self) -> Decimal:
-        return sum(self.reel.values(), Decimal("0.00"))
+        return sum(self.reel.values(), Decimal("0.00")) + self.total_dediees
 
     @property
     def solde(self) -> Decimal:
@@ -265,6 +271,7 @@ def regularisations(
     from .factures import FIXE  # evite un import circulaire au chargement
 
     reels: dict[Any, dict[str, Decimal]] = {t.key: {} for t in occupants}
+    dediees: dict[Any, dict[str, Decimal]] = {t.key: {} for t in occupants}
     provisions: dict[Any, Decimal] = {t.key: Decimal("0.00") for t in occupants}
     totaux: dict[str, Decimal] = {}
     reliquat = Decimal("0.00")
@@ -272,10 +279,48 @@ def regularisations(
     for m in mois:
         du_mois = journal.du_mois(bien, m)
         fin_mois = (m.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+        # Agreger par groupe avant de repartir : une charge dediee vise un
+        # groupe, pas une ligne de facture. L'electricite arrive en quatre
+        # postes, le supplement d'un vehicule est un seul montant.
+        par_groupe: dict[str, Decimal] = {}
         for poste, montant in du_mois.postes.items():
             nom = groupe(poste)
-            totaux[nom] = totaux.get(nom, Decimal("0.00")) + montant
-            parts, reste = repartition(bien, montant, occupants, m, fin_mois)
+            par_groupe[nom] = par_groupe.get(nom, Decimal("0.00")) + montant
+
+        for nom, montant in par_groupe.items():
+            detail = {
+                t.key: t.charges_dediees_periode(nom, m, fin_mois) for t in occupants
+            }
+            total_dedie = sum(
+                (v for lignes in detail.values() for _, v in lignes), Decimal("0.00")
+            )
+            # On ne peut pas imputer plus que la facture du mois. Le cas se
+            # presente quand le journal ne porte qu'une part du groupe : en
+            # septembre, l'abonnement d'electricite seul, la consommation pas
+            # encore relevee. Les supplements sont alors rabattus au prorata.
+            if total_dedie > montant:
+                facteur = montant / total_dedie if total_dedie else Decimal("0")
+                detail = {
+                    cle: [(motif, (v * facteur).quantize(Decimal("0.01")))
+                          for motif, v in lignes]
+                    for cle, lignes in detail.items()
+                }
+                total_dedie = sum(
+                    (v for lignes in detail.values() for _, v in lignes),
+                    Decimal("0.00"),
+                )
+            for cle, lignes in detail.items():
+                for motif, valeur in lignes:
+                    dediees[cle][motif] = dediees[cle].get(
+                        motif, Decimal("0.00")
+                    ) + valeur
+
+            # La colonne « maison » du document porte le montant **partage**,
+            # deduction faite : c'est lui qui se reconcilie avec la quote-part.
+            partage = montant - total_dedie
+            totaux[nom] = totaux.get(nom, Decimal("0.00")) + partage
+            parts, reste = repartition(bien, partage, occupants, m, fin_mois)
             reliquat += reste
             for tenant, part in parts:
                 reels[tenant.key][nom] = reels[tenant.key].get(
@@ -296,6 +341,10 @@ def regularisations(
             tenant=tenant,
             reel={k: v.quantize(Decimal("0.01")) for k, v in reels[tenant.key].items()},
             provisions=provisions[tenant.key],
+            dediees={
+                k: v.quantize(Decimal("0.01"))
+                for k, v in dediees[tenant.key].items()
+            },
         )
         for tenant in occupants
     ]

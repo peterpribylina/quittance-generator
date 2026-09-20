@@ -163,6 +163,29 @@ version a trois postes ; il bascule desormais en page suivante quand il
 depasserait `BAS_UTILE`. Les libelles manuels sont replies par `_wrap` plutot
 que tronques.
 
+`Tenant.charges_dediees` impute a une seule personne ce qu'elle cause seule :
+la recharge d'un vehicule electrique, un radiateur de plus. **Le montant est
+preleve sur le cout du groupe avant repartition**, et le reste se partage aux
+quotes-parts inchangees. C'est ce qui dispense d'une seconde grille de
+pourcentages : tenir les 100 % ne demande aucun calcul, puisque 100 % restent
+100 % d'un montant diminue.
+
+Une seconde grille aurait **suivi la facture** : a 27,92 % d'electricite, un
+hiver froid aurait double le supplement d'un vehicule qui n'aurait rien
+consomme de plus. Le montant fixe ne bouge pas avec le chauffage.
+
+Le montant declare est **mensuel** et se prorate aux jours occupes. Il est
+**plafonne au cout du groupe pour le mois** : imputer 30 € de supplements sur
+un mois ou le journal ne porte que l'abonnement (23,99 €) rendrait la part
+partagee negative. Le plafond se voit — les supplements sont rabattus au
+prorata — et disparait des que la consommation du mois est relevee.
+
+`totaux_maison` porte le montant **partage**, deduction faite. Sans cela, la
+ligne « Electricite » du document ne vaudrait plus maison x quote-part x jours,
+et le locataire ne pourrait plus la verifier. Les supplements ont leurs propres
+lignes, avec leur motif : ni quote-part ni jours a afficher, puisqu'ils ne sont
+pas repartis.
+
 `repartition` distingue **arrondi et vacance** : quand les quotes-parts occupees
 couvrent la periode a 99,95 % ou plus, l'ecart residuel est un arrondi et le
 dernier occupant l'absorbe. Afficher un centime en ligne « Bailleur » ferait

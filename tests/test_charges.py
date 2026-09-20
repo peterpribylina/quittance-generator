@@ -286,3 +286,154 @@ def test_reference_decomposee_et_journal_ne_se_cumulent_pas(
     assert du_mois.total == Decimal("174.53")     # 4,88 + 118,65 + 51
     assert du_mois.est_releve("eau_consommation")
     assert not du_mois.est_releve("internet")
+
+
+def config_dediee(
+    raw_config: dict, tmp_path: Path, postes: dict | None = None, **charges
+) -> Config:
+    """Deux locataires a 50 %, avec les charges dediees demandees."""
+    for cle in ("Jin", "Matilde"):
+        raw_config["tenants"][cle]["share"] = 50.0
+        raw_config["tenants"][cle]["lease_start"] = "2025-09-01"
+    for cle, lignes in charges.items():
+        raw_config["tenants"][cle]["charges_dediees"] = lignes
+    raw_config["properties"]["anzin"]["monthly_charges"] = postes or {
+        "electricite": 200.0
+    }
+    return Config.from_dict(raw_config, base_dir=tmp_path)
+
+
+def regul_anzin(config: Config, journal: Charges, mois=None):
+    from quittances.charges import regularisations
+
+    bien = config.properties["anzin"]
+    occupants = [t for t in config.tenants.values() if t.property.key == "anzin"]
+    return regularisations(
+        bien, occupants, mois or [date(2026, 1, 1)], journal, None
+    )
+
+
+def test_charge_dediee_sort_de_la_repartition(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    """Le supplement est impute a lui seul ; le reste se partage a 50/50.
+
+    C'est ce qui dispense de toucher aux quotes-parts : 100 % restent 100 %,
+    appliques a un montant diminue.
+    """
+    config = config_dediee(
+        raw_config, tmp_path,
+        Jin=[{"groupe": "Électricité", "montant": 20.0, "motif": "Voiture"}],
+    )
+    lignes, totaux, reliquat = regul_anzin(config, Charges.vide())
+    parts = {l.tenant.key: l for l in lignes}
+    # 200 € - 20 € dedies = 180 € partages, 90 € chacun.
+    assert totaux["Électricité"] == Decimal("180.00")
+    assert parts["Jin"].reel["Électricité"] == Decimal("90.00")
+    assert parts["Matilde"].reel["Électricité"] == Decimal("90.00")
+    assert parts["Jin"].dediees == {"Voiture": Decimal("20.00")}
+    assert parts["Matilde"].dediees == {}
+    assert parts["Jin"].total_reel == Decimal("110.00")
+    assert parts["Matilde"].total_reel == Decimal("90.00")
+    assert reliquat == Decimal("0.00")
+
+
+def test_la_maison_reste_soldee(raw_config: dict, tmp_path: Path) -> None:
+    """Rien ne se cree ni ne se perd : les parts et le reliquat font le total."""
+    config = config_dediee(
+        raw_config, tmp_path,
+        Jin=[{"groupe": "Électricité", "montant": 20.0, "motif": "Voiture"}],
+        Matilde=[{"groupe": "Électricité", "montant": 10.0, "motif": "Radiateur"}],
+    )
+    lignes, totaux, reliquat = regul_anzin(config, Charges.vide())
+    supporte = sum((l.total_reel for l in lignes), Decimal("0.00"))
+    assert supporte + reliquat == Decimal("200.00")
+
+
+def test_le_supplement_ne_depasse_pas_la_facture(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    """On ne peut pas imputer plus que le mois ne coute.
+
+    Le cas se presente quand le journal ne porte qu'une part du groupe :
+    l'abonnement seul, la consommation pas encore relevee.
+    """
+    config = config_dediee(
+        raw_config, tmp_path,
+        Jin=[{"groupe": "Électricité", "montant": 40.0, "motif": "Voiture"}],
+        Matilde=[{"groupe": "Électricité", "montant": 20.0, "motif": "Radiateur"}],
+    )
+    fichier = ecrire(tmp_path, {"anzin": {"2026-01": {"electricite": 30.00}}})
+    journal = Charges.load(fichier, config.properties)
+    lignes, totaux, reliquat = regul_anzin(config, journal)
+    parts = {l.tenant.key: l for l in lignes}
+    # 60 € dus pour 30 € factures : rabattus au prorata, deux tiers / un tiers.
+    assert parts["Jin"].dediees == {"Voiture": Decimal("20.00")}
+    assert parts["Matilde"].dediees == {"Radiateur": Decimal("10.00")}
+    assert totaux["Électricité"] == Decimal("0.00")
+    assert sum((l.total_reel for l in lignes), Decimal("0.00")) == Decimal("30.00")
+
+
+def test_le_supplement_suit_les_jours_occupes(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    """Partir le 15 ne fait pas recharger sa voiture jusqu'au 31."""
+    config = config_dediee(
+        raw_config, tmp_path,
+        Jin=[{"groupe": "Électricité", "montant": 31.0, "motif": "Voiture"}],
+    )
+    raw = raw_config["tenants"]["Jin"]
+    raw["lease_end"] = "2026-01-15"
+    raw["preavis"] = False
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    lignes, _, _ = regul_anzin(config, Charges.vide())
+    parts = {l.tenant.key: l for l in lignes}
+    assert parts["Jin"].dediees == {"Voiture": Decimal("15.00")}   # 15 j / 31
+
+
+def test_le_supplement_ne_vise_que_son_groupe(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    """Une voiture ne consomme pas d'eau : l'eau reste a la surface."""
+    config = config_dediee(
+        raw_config, tmp_path,
+        postes={"electricite": 200.0, "eau": 100.0},
+        Jin=[{"groupe": "Électricité", "montant": 20.0, "motif": "Voiture"}],
+    )
+    _, totaux, _ = regul_anzin(config, Charges.vide())
+    assert totaux["Eau"] == Decimal("100.00")        # intacte
+    assert totaux["Électricité"] == Decimal("180.00")
+
+
+def test_groupe_inconnu_refuse(raw_config: dict, tmp_path: Path) -> None:
+    """« electricte » ne doit pas se deviner en « Electricite »."""
+    with pytest.raises(ConfigError, match="inconnu"):
+        config_dediee(
+            raw_config, tmp_path,
+            Jin=[{"groupe": "chauffage", "montant": 20.0, "motif": "Voiture"}],
+        )
+
+
+def test_accents_et_casse_ignores(raw_config: dict, tmp_path: Path) -> None:
+    config = config_dediee(
+        raw_config, tmp_path,
+        Jin=[{"groupe": "ELECTRICITE", "montant": 20.0, "motif": "Voiture"}],
+    )
+    assert config.tenant("Jin").charges_dediees[0].groupe == "Électricité"
+
+
+def test_motif_obligatoire(raw_config: dict, tmp_path: Path) -> None:
+    """Un supplement non explique sur le document genere une question."""
+    with pytest.raises(ConfigError, match="motif"):
+        config_dediee(
+            raw_config, tmp_path,
+            Jin=[{"groupe": "Électricité", "montant": 20.0}],
+        )
+
+
+def test_montant_negatif_refuse(raw_config: dict, tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="positif"):
+        config_dediee(
+            raw_config, tmp_path,
+            Jin=[{"groupe": "Électricité", "montant": -20.0, "motif": "Voiture"}],
+        )

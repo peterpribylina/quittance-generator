@@ -603,6 +603,7 @@ def cmd_regul(config: Config, args: argparse.Namespace) -> int:
             jours_dus=ligne.tenant.jours_occupes(debut, fin),
             jours_periode=(fin - debut).days + 1,
             lignes=ligne.tenant.lignes_manuelles_entre(debut, fin),
+            dediees=tuple(sorted(ligne.dediees.items())),
         )
         for ligne in lignes
     ]
@@ -629,6 +630,13 @@ def cmd_regul(config: Config, args: argparse.Namespace) -> int:
         )
         # Sans ce detail, un solde qui ne vaut pas reel moins provisions
         # passerait pour une erreur de calcul.
+        for motif, montant in regul.dediees:
+            print(
+                printable(
+                    f"  {''.ljust(largeur)}  {format_amount(montant).rjust(8)}"
+                    f"  dont {motif}"
+                )
+            )
         for manuelle in regul.lignes:
             print(
                 printable(
