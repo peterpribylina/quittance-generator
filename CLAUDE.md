@@ -176,13 +176,25 @@ C'est une contrainte, pas un choix : `du_mois` ne remplace une reference que par
 une cle identique. Laisser `eau: 100` en reference avec `eau_abonnement` au
 journal ferait compter l'eau **deux fois**.
 
-Le forfait vient de la facture SUEZ du 29/09/2025 (158 m3, 1 164,76 € TTC) :
-abonnement 57,50 €/an, soit 0,1575 €/jour ; variable 7,0079 €/m3. La
-consommation est **saisonniere** — 0,5487 m3/jour du 24/09 au 06/04 contre
-0,3000 du 07/04 au 23/09, 1,80 fois plus l'hiver — d'ou un prorata mois par
-mois sur les deux periodes relevees plutot qu'une moyenne plate, qui se
-tromperait de 40 % a chaque semestre. Anzin n'a pas encore de facture
-depouillee et garde son forfait de 80 €.
+Les deux maisons sont decomposees, chacune depuis sa facture SUEZ annuelle.
+La consommation est **saisonniere** et chaque fenetre de relevi garde son taux
+journalier : a Valenciennes 0,5487 m3/jour du 24/09 au 06/04 contre 0,3000 du
+07/04 au 23/09, soit 1,80 fois plus l'hiver. Une moyenne plate se tromperait de
+40 % a chaque semestre, d'ou le prorata mois par mois. Les fenetres d'Anzin
+(09/07-06/12 et 07/12-08/07) chevauchent les saisons : leur ecart de 1,20 ne se
+compare pas a celui de Valenciennes, il ne dit pas la meme chose.
+
+**SUEZ arrondit la TVA ligne a ligne**, pas sur le total par taux. Sommer les HT
+par taux avant d'appliquer la TVA donne 2 centimes d'ecart sur Anzin — assez
+pour faire echouer un controle contre les totaux imprimes.
+
+L'abonnement assainissement SUEZ d'Anzin (28,31 € TTC au 2e semestre 2025) est
+**exclu du forfait** : GESAV reprend le service au 01/01/2026 et facture au m3
+sans part fixe. Le reconduire surestimerait la part fixe de moitie.
+
+Les montants inscrits portent une **majoration de 5 %**, prevision de hausse
+pour 2026-2027 decidee par le bailleur. Elle ne s'applique qu'a l'eau : internet
+est un abonnement ferme et l'electricite se releve sur facture.
 
 L'eau et l'internet sont portes au journal sur toute l'annee de bail pour etre
 ajustables mois par mois. Consequence

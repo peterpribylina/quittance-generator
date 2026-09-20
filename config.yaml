@@ -27,7 +27,11 @@ properties:
     charges_folder: C:/Users/P5073668/Documents/quittances/Coloc_Anzin/Charges
     # Charges fixes mensuelles, reference 2026.
     monthly_charges:
-      eau: 80.00
+      # Decompose depuis la facture SUEZ du 20/07/2026 (juillet 2025 -
+      # juillet 2026, 128 m3, 925,79 € TTC), majore de 5 % en prevision.
+      # Moyenne mensuelle : le detail saisonnier est dans charges.yaml.
+      eau_abonnement: 5.04
+      eau_consommation: 74.69
       internet: 51.00
   vals:
     address: 14 avenue de Condé, 59300 Valenciennes
@@ -36,11 +40,11 @@ properties:
     # Charges fixes mensuelles, reference 2026.
     monthly_charges:
       # Decompose depuis la facture SUEZ du 29/09/2025 (sept. 2024 - sept. 2025,
-      # 158 m3, 1 164,76 € TTC). L'abonnement est la part fixe, due logement
-      # vide ; le reste suit la consommation. Moyenne mensuelle : le detail
-      # saisonnier est dans charges.yaml.
-      eau_abonnement: 4.79
-      eau_consommation: 92.27
+      # 158 m3, 1 164,76 € TTC), majore de 5 % en prevision. L'abonnement est
+      # la part fixe, due logement vide ; le reste suit la consommation.
+      # Moyenne mensuelle : le detail saisonnier est dans charges.yaml.
+      eau_abonnement: 5.03
+      eau_consommation: 96.89
       internet: 51.00
   lille:
     address: 84 rue Jules Vallès, 59800 Lille

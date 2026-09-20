@@ -255,29 +255,38 @@ comme l'électricité, s'ajoute simplement.
 #### Décomposer l'eau
 
 L'eau se lit comme l'électricité : une part fixe qui court même logement vide,
-une part qui suit la consommation. La facture SUEZ du 29/09/2025 pour
-Valenciennes (158 m³, 1 164,76 € TTC sur un an) donne :
+une part qui suit la consommation. Les factures SUEZ annuelles donnent :
 
-| | Montant | Par jour |
-|---|---|---|
-| Abonnement (fixe) | 57,50 €/an TTC | 0,1575 € |
-| Consommation et taxes (variable) | 7,0079 €/m³ TTC | 3,0253 € |
+| Maison | Période | Conso | Abonnement | Variable |
+|---|---|---|---|---|
+| Valenciennes | sept. 2024 → sept. 2025 | 158 m³ | 57,50 €/an | 7,0079 €/m³ |
+| Anzin | juil. 2025 → juil. 2026 | 128 m³ | 57,55 €/an | 6,5620 €/m³ |
 
-La consommation est **saisonnière** : 0,5487 m³/jour du 24/09 au 06/04 contre
-0,3000 du 07/04 au 23/09, soit 1,80 fois plus l'hiver. Le journal proratise donc
-mois par mois sur les deux périodes relevées plutôt que d'étaler une moyenne,
-qui se tromperait de 40 % à chaque semestre :
+La consommation est **saisonnière**. À Valenciennes, 0,5487 m³/jour du 24/09 au
+06/04 contre 0,3000 du 07/04 au 23/09 : 1,80 fois plus l'hiver. Chaque fenêtre
+de relevé garde donc son taux journalier, proratisé mois par mois, plutôt qu'une
+moyenne qui se tromperait de 40 % à chaque semestre :
 
 ```yaml
 vals:
-  2026-12: {eau_abonnement: 4.88, eau_consommation: 118.65, internet: 51.00}
-  2027-07: {eau_abonnement: 4.88, eau_consommation: 65.82, internet: 51.00}
+  2026-12: {eau_abonnement: 5.13, eau_consommation: 124.58, internet: 51.00}
+  2027-07: {eau_abonnement: 5.13, eau_consommation: 69.11, internet: 51.00}
 ```
 
 Les deux postes portent le préfixe `eau_` : sans lui, `abonnement` et
 `consommation` désigneraient l'électricité. Ils se regroupent en une seule
 colonne **Eau** sur la régularisation — le locataire lit un poste, le bailleur
 en voit deux.
+
+Les montants inscrits portent une **majoration de 5 %**, prévision de hausse
+pour l'année de bail. Elle ne vise que l'eau : internet est un abonnement ferme,
+l'électricité se relève sur facture.
+
+Deux pièges relevés sur les factures réelles. SUEZ **arrondit la TVA ligne à
+ligne** et non sur le total par taux — l'écart atteint 2 centimes, assez pour
+faire échouer un contrôle. Et l'abonnement assainissement d'Anzin disparaît au
+01/01/2026, GESAV reprenant le service à la facturation au m³ : le reconduire
+surestimerait la part fixe de moitié.
 
 La référence de `config.yaml` porte la **même décomposition**, faute de quoi
 l'eau serait comptée deux fois : un poste du journal ne remplace une référence
@@ -286,8 +295,8 @@ que sous une clé identique.
 ```yaml
   vals:
     monthly_charges:
-      eau_abonnement: 4.79
-      eau_consommation: 92.27
+      eau_abonnement: 5.03
+      eau_consommation: 96.89
       internet: 51.00
 ```
 
