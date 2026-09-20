@@ -313,8 +313,10 @@ somme qui s'ecarte de 100 % de plus que `TOLERANCE_QUOTE_PART` (0,05 point, pour
 absorber l'arrondi de surfaces reelles). Une maison sans aucune quote-part reste
 valide : la repartition n'y est pas encore en place.
 
-`Tenant.room` (« R+2 », « RDC jardin ») situe la chambre, sans autre effet que
-l'affichage pour l'instant.
+`Tenant.room` (« R+2 », « RDC jardin ») situe la chambre. La regularisation
+la rappelle dans son paragraphe d'introduction : « 22,39 % » ne dit pas
+laquelle des cinq, et un locataire qui a change de chambre doit savoir de
+laquelle on parle. Ailleurs, elle ne sert qu'a l'affichage.
 
 ## Ajustements mensuels
 

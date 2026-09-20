@@ -478,9 +478,13 @@ def render_regularisation(
     # comme un ajout apres coup alors qu'elle situe le decompte : le lecteur
     # doit l'avoir avant les chiffres, pas apres.
     contexte = f" {escape(regul.note)}" if regul.note else ""
+    # La chambre situe la quote-part : « 22,39 % » ne dit pas laquelle des cinq,
+    # et un locataire qui a change de chambre doit savoir de laquelle on parle.
+    chambre = f", chambre {escape(tenant.room)}" if tenant.room else ""
     hauteur_intro = _paragraph(
         canvas,
-        f"Charges réelles du logement situé au {_bold(tenant.address)}, "
+        f"Charges réelles du logement situé au {_bold(tenant.address)}"
+        f"{chambre}, "
         f"réparties sur chaque poste au prorata de la surface occupée "
         f"({escape(tenant.share_label)}){prorata}.{contexte} Le graphique "
         f"compare, mois par mois, la provision versée au coût réellement "
