@@ -50,6 +50,23 @@ GRIS_MOYEN = HexColor("#8A8A8A")
 GRIS_CLAIR = HexColor("#D4D4D6")
 VERT = HexColor("#2E7D5B")
 
+# Palette du graphique de regularisation. Les quatre creneaux catégoriels du
+# guide dataviz, passes au validateur sur fond clair : bande de clarte, plancher
+# de chroma, ecart CVD (pire paire ΔE 9,1) et plancher en vision normale (22,9)
+# tous PASS. Le contraste de l'aqua et du jaune reste sous 3:1, ce qui exige un
+# releve chiffre : le tableau qui suit le graphique le fournit.
+#
+# La teinte suit l'**intitule**, jamais le rang : un mois sans electricite ne
+# doit pas repeindre les tranches des autres mois.
+COULEUR_TRANCHE = {
+    "Eau": HexColor("#2A78D6"),
+    "Internet": HexColor("#EB6834"),
+    "Électricité": HexColor("#1BAF7A"),
+    "Supplément": HexColor("#EDA100"),
+}
+# La provision n'est pas une categorie mais un repere : elle reste neutre.
+COULEUR_PROVISION = HexColor("#8A8A8A")
+
 MARGE = 56.0
 DROITE = PAGE_WIDTH - MARGE
 COLONNE_2 = MARGE + 300.0
@@ -200,6 +217,127 @@ FILIGRANE_TAILLE = 160.0
 FILIGRANE_OPACITE = 0.10
 
 
+def _barre(canvas, x: float, bas: float, largeur: float, hauteur: float,
+           couleur, arrondi: bool) -> None:
+    """Barre pleine, coins hauts arrondis, pied carre sur la ligne de base.
+
+    Seule la tranche du sommet est arrondie : une pile dont chaque segment le
+    serait ressemblerait a des gelules empilees, pas a une barre.
+    """
+    if hauteur <= 0:
+        return
+    rayon = min(3.0, largeur / 2.0, hauteur) if arrondi else 0.0
+    k = rayon * 0.5523
+    haut = bas + hauteur
+    chemin = canvas.beginPath()
+    chemin.moveTo(x, bas)
+    chemin.lineTo(x, haut - rayon)
+    if rayon:
+        chemin.curveTo(x, haut - rayon + k, x + rayon - k, haut, x + rayon, haut)
+        chemin.lineTo(x + largeur - rayon, haut)
+        chemin.curveTo(x + largeur - rayon + k, haut, x + largeur,
+                       haut - rayon + k, x + largeur, haut - rayon)
+    else:
+        chemin.lineTo(x + largeur, haut)
+    chemin.lineTo(x + largeur, bas)
+    chemin.close()
+    canvas.saveState()
+    canvas.setFillColor(couleur)
+    canvas.drawPath(chemin, stroke=0, fill=1)
+    canvas.restoreState()
+
+
+def _pastille(canvas, x: float, haut: float, couleur) -> float:
+    """Petit carre de legende. Renvoie la largeur occupee."""
+    canvas.saveState()
+    canvas.setFillColor(couleur)
+    canvas.rect(x, _y(haut + 6.0), 6.0, 6.0, stroke=0, fill=1)
+    canvas.restoreState()
+    return 6.0
+
+
+def _draw_comparatif(canvas, regul, haut: float) -> float:
+    """Barres mensuelles : provision versee contre cout reel, empile par poste.
+
+    Le locataire ne voit plus le budget de la maison, mais il doit comprendre
+    d'ou vient son solde. Mois par mois, la provision qu'il a versee fait face
+    a ce que le mois lui a reellement coute, decompose comme le tableau qui
+    suit — meme intitules, memes montants.
+
+    Renvoie la hauteur consommee.
+    """
+    if not regul.mensuel:
+        return 0.0
+
+    HAUTEUR = 104.0
+    depart = haut
+    tranches = regul.tranches
+    plafond = regul.plafond_mensuel
+    if plafond <= 0:
+        return 0.0
+
+    _label(canvas, "Mois par mois", MARGE, haut)
+    haut += 16.0
+
+    # Legende : identite portee par un carre et un mot, jamais par la couleur
+    # seule. Elle precede le trace, pour se lire avant les barres.
+    x = MARGE
+    for nom, couleur in [("Provision versée", COULEUR_PROVISION)] + [
+        (nom, COULEUR_TRANCHE.get(nom, GRIS)) for nom in tranches
+    ]:
+        x += _pastille(canvas, x, haut, couleur) + 4.0
+        _text(canvas, nom, x, haut, FONT, 6.5, GRIS)
+        x += canvas.stringWidth(nom, FONT, 6.5) + 14.0
+    haut += 14.0
+
+    base = _y(haut + HAUTEUR)
+    echelle = HAUTEUR / float(plafond)
+
+    # Une seule ligne de base, et pas de reglette haute : elle aurait porte la
+    # meme valeur que l'etiquette du pic, deux fois la meme chose. Les etiquettes
+    # directes passent avant la grille, et la grille avant un second axe.
+    _rule(canvas, haut + HAUTEUR, MARGE, DROITE, GRIS_CLAIR, 0.5)
+
+    bande = (DROITE - MARGE) / len(regul.mensuel)
+    largeur = min(13.0, (bande - 12.0) / 2.0)
+    pic = regul.pic_mensuel
+    for index, (mois, lignes, provision) in enumerate(regul.mensuel):
+        centre = MARGE + bande * (index + 0.5)
+        gauche = centre - largeur - 1.0          # 2 pt de blanc entre les deux
+
+        _barre(canvas, gauche, base, largeur,
+               float(provision) * echelle, COULEUR_PROVISION, True)
+
+        empile = 0.0
+        visibles = [(n, lignes[n]) for n in tranches if lignes.get(n)]
+        for rang, (nom, montant) in enumerate(visibles):
+            hauteur = float(montant) * echelle
+            # 2 pt de fond entre deux tranches, plutot qu'un contour.
+            creux = 2.0 if rang < len(visibles) - 1 else 0.0
+            _barre(canvas, centre + 1.0, base + empile, largeur,
+                   max(hauteur - creux, 0.0), COULEUR_TRANCHE.get(nom, GRIS),
+                   rang == len(visibles) - 1)
+            empile += hauteur
+
+        _text(
+            canvas, regul.mois_label[index],
+            centre - canvas.stringWidth(regul.mois_label[index], FONT, 6.0) / 2.0,
+            haut + HAUTEUR + 12.0, FONT, 6.0, GRIS_MOYEN,
+        )
+        # Un montant par barre serait illisible : seul l'extreme est etiquete.
+        if pic and index == pic[0]:
+            etiquette = format_amount(pic[1])
+            _text(
+                canvas, etiquette,
+                centre + 1.0 + largeur / 2.0
+                - canvas.stringWidth(etiquette, FONT_BOLD, 6.5) / 2.0,
+                haut + HAUTEUR - empile - 4.0, FONT_BOLD, 6.5, GRIS,
+            )
+    # Hauteur reellement consommee, etiquettes de mois comprises : un forfait
+    # laissait l'en-tete du tableau s'ecrire sur « sept. ».
+    return haut + HAUTEUR + 32.0 - depart
+
+
 def _draw_watermark(canvas, config: Config, bas: float = 720.0) -> None:
     """Filigrane en bas a droite, dans la zone laissee libre par la signature.
 
@@ -348,9 +486,9 @@ def render_regularisation(
         canvas,
         f"Charges réelles du logement situé au {_bold(tenant.address)}, "
         f"réparties sur chaque poste au prorata de la surface occupée "
-        f"({escape(tenant.share_label)}){prorata}.{contexte} La colonne PAR "
-        f"MOIS ramène votre part à un coût mensuel, comparable à vos "
-        f"provisions.{reserve}",
+        f"({escape(tenant.share_label)}){prorata}.{contexte} Le graphique "
+        f"compare, mois par mois, la provision versée au coût réellement "
+        f"supporté.{reserve}",
         MARGE, 322.0, DROITE - MARGE, CORPS_GAUCHE,
     )
 
@@ -361,15 +499,19 @@ def render_regularisation(
     # rien. La phrase d'introduction les porte une fois. Le cout mensuel les
     # remplace, seule grandeur directement comparable a la provision appelee
     # chaque mois sur la quittance.
-    col_maison = DROITE - 230.0
     col_mois, col_du = DROITE - 110.0, DROITE
-    largeur_libelle = (DROITE - 70.0) - MARGE
+    largeur_libelle = (DROITE - 82.0) - MARGE
     # Le tableau suit le paragraphe au lieu de partir d'une ordonnee fixe : le
     # texte gagne ou perd une ligne selon le locataire — prorata, supplements,
     # adresse longue — et l'en-tete venait s'ecrire dessus.
-    haut = max(370.0, 322.0 + hauteur_intro + 22.0)
+    haut = max(360.0, 322.0 + hauteur_intro + 20.0)
+
+    haut += _draw_comparatif(canvas, regul, haut)
+
+    # Plus de colonne MAISON : le cout total du logement disait aux uns ce que
+    # paient les autres. La quote-part suffit a verifier sa propre part, et le
+    # detail par nature de charges reste — un decompte le doit.
     _label(canvas, "Poste", MARGE, haut)
-    _text_right(canvas, "MAISON", col_maison, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
     _text_right(canvas, "PAR MOIS", col_mois, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
     _text_right(canvas, "VOTRE PART", col_du, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
     haut += 16.0
@@ -377,12 +519,11 @@ def render_regularisation(
     haut += 12.0
 
     for poste in regul.postes:
-        _text(canvas, poste, MARGE, haut, FONT, 9.5)
-        _text_right(
-            canvas,
-            format_amount(regul.totaux_maison.get(poste, Decimal("0"))),
-            col_maison, haut, FONT, 9.5, GRIS,
-        )
+        # Pastille : elle relie la ligne a sa tranche du graphique. L'identite
+        # reste portee par l'intitule, jamais par la couleur seule.
+        if regul.mensuel and poste in COULEUR_TRANCHE:
+            _pastille(canvas, MARGE, haut - 1.0, COULEUR_TRANCHE[poste])
+        _text(canvas, poste, MARGE + 12.0, haut, FONT, 9.5)
         montant = regul.reel.get(poste, Decimal("0"))
         _text_right(
             canvas, format_amount(regul.par_mois(montant)),
@@ -396,6 +537,8 @@ def render_regularisation(
     # PART incoherente, puisqu'ils ne sont justement pas partages.
     if regul.dediees:
         for motif, montant in regul.dediees:
+            if regul.mensuel:
+                _pastille(canvas, MARGE, haut - 1.0, COULEUR_TRANCHE["Supplément"])
             replis = _wrap(canvas, motif, FONT, 9.5, largeur_libelle)
             _text_right(
                 canvas, format_amount(regul.par_mois(montant)),
@@ -403,7 +546,7 @@ def render_regularisation(
             )
             _text_right(canvas, format_amount(montant), col_du, haut, FONT, 9.5)
             for repli in replis:
-                _text(canvas, repli, MARGE, haut, FONT, 9.5)
+                _text(canvas, repli, MARGE + 12.0, haut, FONT, 9.5)
                 haut += 13.0
             haut += 5.0
         _text(

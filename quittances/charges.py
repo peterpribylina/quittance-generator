@@ -215,6 +215,11 @@ def repartition(
 # meme logement vide) et une part variable (consommation, assainissement,
 # redevances). Les deux postes sont distincts du cote electricite — sans le
 # prefixe « eau_ », `abonnement` designerait les deux.
+# Intitule de la tranche qui porte les supplements dedies, au graphique comme
+# au tableau : ils ne sont pas repartis, ils ne se fondent donc pas dans leur
+# groupe.
+SUPPLEMENT = "Supplément"
+
 GROUPES = {
     "eau": "Eau",
     "eau_abonnement": "Eau",
@@ -237,6 +242,10 @@ class LigneRegularisation:
     provisions: Decimal
     # Supplements imputes a lui seul : motif -> montant sur la periode.
     dediees: dict[str, Decimal] = field(default_factory=dict)
+    # (mois, {ligne: montant}, provisions) pour le graphique. Les cles sont
+    # celles du tableau — groupes de postes, plus « Supplement » — pour que la
+    # barre empilee et le decompte disent la meme chose.
+    mensuel: tuple[tuple[date, dict[str, Decimal], Decimal], ...] = ()
 
     @property
     def total_dediees(self) -> Decimal:
@@ -272,6 +281,14 @@ def regularisations(
 
     reels: dict[Any, dict[str, Decimal]] = {t.key: {} for t in occupants}
     dediees: dict[Any, dict[str, Decimal]] = {t.key: {} for t in occupants}
+    # Cumul par mois, pour le graphique : ce que le locataire a supporte face a
+    # ce qu'il a verse.
+    par_mois: dict[Any, dict[date, dict[str, Decimal]]] = {
+        t.key: {m: {} for m in mois} for t in occupants
+    }
+    prov_mois: dict[Any, dict[date, Decimal]] = {
+        t.key: {m: Decimal("0.00") for m in mois} for t in occupants
+    }
     provisions: dict[Any, Decimal] = {t.key: Decimal("0.00") for t in occupants}
     totaux: dict[str, Decimal] = {}
     reliquat = Decimal("0.00")
@@ -315,6 +332,11 @@ def regularisations(
                     dediees[cle][motif] = dediees[cle].get(
                         motif, Decimal("0.00")
                     ) + valeur
+                    # Le supplement n'est pas reparti : il forme sa propre
+                    # tranche, comme sa propre ligne au tableau.
+                    par_mois[cle][m][SUPPLEMENT] = par_mois[cle][m].get(
+                        SUPPLEMENT, Decimal("0.00")
+                    ) + valeur
 
             # La colonne « maison » du document porte le montant **partage**,
             # deduction faite : c'est lui qui se reconcilie avec la quote-part.
@@ -326,6 +348,9 @@ def regularisations(
                 reels[tenant.key][nom] = reels[tenant.key].get(
                     nom, Decimal("0.00")
                 ) + part
+                par_mois[tenant.key][m][nom] = par_mois[tenant.key][m].get(
+                    nom, Decimal("0.00")
+                ) + part
 
         for tenant in occupants:
             ajustement = ajustements.pour(tenant, m) if ajustements else None
@@ -335,6 +360,7 @@ def regularisations(
             # Un locataire hors bail ne s'est vu facturer aucune provision.
             if tenant.jours_occupes(m, fin_mois) > 0:
                 provisions[tenant.key] += charges
+                prov_mois[tenant.key][m] += charges
 
     lignes = [
         LigneRegularisation(
@@ -345,6 +371,14 @@ def regularisations(
                 k: v.quantize(Decimal("0.01"))
                 for k, v in dediees[tenant.key].items()
             },
+            mensuel=tuple(
+                (
+                    m,
+                    {k: v.quantize(Decimal("0.01")) for k, v in lignes.items()},
+                    prov_mois[tenant.key][m].quantize(Decimal("0.01")),
+                )
+                for m, lignes in sorted(par_mois[tenant.key].items())
+            ),
         )
         for tenant in occupants
     ]

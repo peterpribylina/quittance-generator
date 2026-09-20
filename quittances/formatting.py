@@ -44,6 +44,21 @@ def month_year(value: date) -> str:
     return f"{month_name(value.month)} {value.year}"
 
 
+# Abreviations d'usage, pas une troncature : « dece » et « avri » ne sont pas
+# des mots. Mars, mai et juin s'ecrivent en entier, ils sont deja courts.
+MOIS_COURTS = (
+    "janv.", "févr.", "mars", "avr.", "mai", "juin",
+    "juil.", "août", "sept.", "oct.", "nov.", "déc.",
+)
+
+
+def month_abbr(month: int) -> str:
+    """« sept. », « déc. » — pour un axe de graphique."""
+    if not 1 <= month <= 12:
+        raise ValueError(f"Mois invalide : {month}")
+    return MOIS_COURTS[month - 1]
+
+
 MOIS_EN = (
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",

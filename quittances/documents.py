@@ -25,6 +25,7 @@ from .formatting import (
     format_date_en,
     montant_en_lettres,
     format_date_long,
+    month_abbr,
     month_name,
     month_name_en,
     month_year,
@@ -386,6 +387,11 @@ class Regularisation:
     # Ils ne sont pas dans `reel`, dont chaque ligne doit rester le produit
     # maison x quote-part x jours.
     dediees: tuple[tuple[str, Decimal], ...] = ()
+    # (mois, {ligne: montant}, provision) : la matiere du graphique. Les cles
+    # sont celles du tableau, pour que la barre empilee et le decompte disent la
+    # meme chose. Le cout de la maison n'y figure pas — le locataire n'a pas a
+    # connaitre le budget des autres — mais il doit voir d'ou vient son solde.
+    mensuel: tuple[tuple[date, dict[str, Decimal], Decimal], ...] = ()
 
     @property
     def jours_label(self) -> str:
@@ -466,6 +472,49 @@ class Regularisation:
     @property
     def periode_label(self) -> str:
         return f"{format_date(self.debut)} - {format_date(self.fin)}"
+
+    @property
+    def mois_label(self) -> list[str]:
+        """« sept », « oct »... sous chaque paire de barres."""
+        return [month_abbr(m.month) for m, _, _ in self.mensuel]
+
+    @property
+    def tranches(self) -> list[str]:
+        """Intitules empiles, dans l'ordre du tableau.
+
+        Une teinte est attachee a une ligne, jamais a son rang : un mois sans
+        electricite ne doit pas repeindre les autres tranches.
+        """
+        vus = {nom for _, lignes, _ in self.mensuel for nom in lignes}
+        return [nom for nom in self.postes if nom in vus] + [
+            nom for nom in sorted(vus) if nom not in self.postes
+        ]
+
+    def reel_du_mois(self, index: int) -> Decimal:
+        _, lignes, _ = self.mensuel[index]
+        return sum(lignes.values(), Decimal("0.00"))
+
+    @property
+    def pic_mensuel(self) -> tuple[int, Decimal] | None:
+        """Index et montant du mois le plus cher, seul point directement etiquete.
+
+        Un montant sur chaque barre serait illisible : on n'etiquette que
+        l'extreme, le tableau portant le reste.
+        """
+        if not self.mensuel:
+            return None
+        index = max(range(len(self.mensuel)), key=self.reel_du_mois)
+        return index, self.reel_du_mois(index)
+
+    @property
+    def plafond_mensuel(self) -> Decimal:
+        """Hauteur de l'axe : le plus grand des reels et des provisions."""
+        if not self.mensuel:
+            return Decimal("0.00")
+        return max(
+            max(self.reel_du_mois(i) for i in range(len(self.mensuel))),
+            max(prov for _, _, prov in self.mensuel),
+        )
 
     @property
     def postes(self) -> list[str]:
