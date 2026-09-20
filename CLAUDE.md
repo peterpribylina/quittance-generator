@@ -102,6 +102,17 @@ consommation, bien qu'elles figurent sous un meme total sur la facture.
 `mois_complets` refuse d'inscrire un mois que les factures ne couvrent pas de
 bout en bout pour les deux categories.
 
+Une periode se lit sur **toute sa section** (`_periode_de_section`), pas sur sa
+premiere ligne. Les factures d'avant mars 2026 detaillent la consommation en
+tranches quand un tarif change en cours de mois — « du 29/01 au 31/01 » puis
+« du 01/02 au 28/02 » — et ne retenir que la premiere amputait le mois, faisant
+passer des mois complets pour incomplets. Les intitules de `SECTIONS` servent
+de butoir : une periode lue au-dela appartient deja au poste suivant.
+
+La section des taxes s'intitule « Taxes locales et contributions » avant mars
+2026 et « Contributions et taxes » depuis ; `_trouver_un` accepte les deux. Sept
+factures de 2025 echouaient sur ce seul libelle.
+
 ## Regularisation de charges
 
 `charges.regularisations` confronte le reel aux provisions, mois par mois. Le

@@ -103,6 +103,40 @@ def _periode_de_ligne(ligne: str) -> tuple[date, date] | None:
     return _date(trouve.group(1)), _date(trouve.group(2))
 
 
+# Intitules qui ouvrent une section du detail. Servent de butoir : une periode
+# lue au-dela appartient deja au poste suivant.
+SECTIONS = (
+    "Abonnement d'électricité",
+    "Consommation d'électricité",
+    "Offres promotionnelles",
+    "Services, prestations",
+    "Taxes locales",
+    "Contributions et taxes",
+    "TVA (",
+    "TOTAL TTC",
+)
+
+
+def _periode_de_section(detail: list[str], depart: int) -> tuple[date, date] | None:
+    """Periode couverte par une section, sous-periodes comprises.
+
+    Les factures d'avant mars 2026 detaillent la consommation en plusieurs
+    tranches — « du 29/01/25 au 31/01/25 » puis « du 01/02/25 au 28/02/25 »
+    quand un tarif change en cours de mois. Ne retenir que la premiere
+    amputait la periode de consommation et faussait le prorata mensuel.
+    """
+    bornes: list[tuple[date, date]] = []
+    for ligne in detail[depart + 1:]:
+        if any(ligne.startswith(section) for section in SECTIONS):
+            break
+        trouve = _periode_de_ligne(ligne)
+        if trouve:
+            bornes.append(trouve)
+    if not bornes:
+        return None
+    return min(d for d, _ in bornes), max(f for _, f in bornes)
+
+
 def lire_facture(chemin: Path) -> Facture:
     """Extrait les postes d'une facture d'electricite TotalEnergies."""
     try:
@@ -133,15 +167,20 @@ def lire_facture(chemin: Path) -> Facture:
                 return i, ligne
         raise FactureError(f"{chemin.name} : ligne « {motif} » introuvable.")
 
+    def _trouver_un(motifs: tuple[str, ...]) -> tuple[int, str]:
+        """Premier intitule present parmi plusieurs variantes de mise en page."""
+        for i, ligne in enumerate(detail):
+            if any(ligne.startswith(motif) for motif in motifs):
+                return i, ligne
+        attendus = " » ou « ".join(motifs)
+        raise FactureError(f"{chemin.name} : ligne « {attendus} » introuvable.")
+
     postes: list[Poste] = []
 
     # Abonnement : son montant est sur l'intitule, sa periode sur la suivante.
     i, ligne = _trouver("Abonnement d'électricité")
     montant_abo = _montant_de_ligne(ligne)
-    periode_abo = next(
-        (_periode_de_ligne(l) for l in detail[i + 1: i + 4] if _periode_de_ligne(l)),
-        None,
-    )
+    periode_abo = _periode_de_section(detail, i)
     if montant_abo is None or periode_abo is None:
         raise FactureError(f"{chemin.name} : abonnement illisible.")
     postes.append(Poste("Abonnement", FIXE, montant_abo, *periode_abo))
@@ -149,10 +188,7 @@ def lire_facture(chemin: Path) -> Facture:
     # Consommation : periode relevee, decalee d'un mois par rapport a l'abonnement.
     i, ligne = _trouver("Consommation d'électricité")
     montant_conso = _montant_de_ligne(ligne)
-    periode_conso = next(
-        (_periode_de_ligne(l) for l in detail[i + 1: i + 4] if _periode_de_ligne(l)),
-        None,
-    )
+    periode_conso = _periode_de_section(detail, i)
     if montant_conso is None or periode_conso is None:
         raise FactureError(f"{chemin.name} : consommation illisible.")
     postes.append(Poste("Consommation", VARIABLE, montant_conso, *periode_conso))
@@ -175,7 +211,9 @@ def lire_facture(chemin: Path) -> Facture:
     # separer evite de faire payer de l'accise a un locataire absent.
     cta = next((l for l in detail if "Contribution Tarifaire d'Acheminement" in l), None)
     montant_cta = _montant_de_ligne(cta) if cta else None
-    i, ligne = _trouver("Contributions et taxes")
+    # « Taxes locales et contributions » avant mars 2026, « Contributions et
+    # taxes » depuis. Le meme total, sous deux intitules.
+    i, ligne = _trouver_un(("Contributions et taxes", "Taxes locales"))
     total_taxes = _montant_de_ligne(ligne)
     if total_taxes is None:
         # L'intitule tient sur deux lignes : le montant est sur la suivante.
