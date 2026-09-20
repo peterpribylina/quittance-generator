@@ -82,7 +82,9 @@ tenants:
     property: anzin
     room: R+2
     share: 22.39
-    lease_start: 2026-09-01
+    # Entree en septembre 2025, bail reconduit en 2026 : ses douze
+    # premieres quittances vont de 09/2025 a 08/2026.
+    lease_start: 2025-09-01
     rent: 340.00
     charges: 70.00
 
