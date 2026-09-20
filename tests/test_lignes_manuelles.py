@@ -324,3 +324,52 @@ def test_regularisation_courte_tient_sur_une_page(
 ) -> None:
     chemin = render_regularisation(regul(config), config, tmp_path / "r.pdf")
     assert len(pypdf.PdfReader(str(chemin)).pages) == 1
+
+
+# --- Email bilingue ----------------------------------------------------
+
+
+def test_email_porte_les_deux_langues(config: Config) -> None:
+    """Le decompte reste francais, l'envoi qui l'accompagne ne l'est pas."""
+    texte, html = regul(config).email_body("Peter")
+    for corps in (texte, html):
+        assert "Bonjour Jingyi" in corps
+        assert "Hi Jingyi" in corps
+        assert "Bien à toi" in corps
+        assert "Best," in corps
+
+
+def test_objet_bilingue(config: Config) -> None:
+    objet = regul(config).email_subject
+    assert "Régularisation de charges" in objet
+    assert "Service charge statement" in objet
+
+
+def test_conventions_anglaises(config: Config) -> None:
+    """« €450.50 » et non « 450,50 € », mois en toutes lettres."""
+    r = regul(config)
+    texte, _ = r.email_body("Peter")
+    assert "€60.50" in texte                      # provisions
+    assert "1 September 2026" in r.periode_label_en
+    assert "01/09/2026" in r.periode_label        # le francais garde sa forme
+
+
+def test_le_cout_mensuel_est_dit_dans_les_deux_langues(config: Config) -> None:
+    """La comparaison au mois est ce qui parle au locataire."""
+    r = regul(config)
+    texte, html = r.email_body("Peter")
+    assert r.comparaison in texte
+    assert "per month against" in texte
+    assert "per month against" in html
+
+
+def test_les_motifs_ne_sont_pas_traduits(config: Config) -> None:
+    """Libelles et motifs sont saisis a la main : ils valent tels quels."""
+    avec = regul(
+        config, LigneManuelle(date(2026, 9, 30), "Geste commercial", Decimal("50"))
+    )
+    texte, html = avec.email_body("Peter")
+    assert texte.count("Geste commercial") == 2   # une fois par langue
+    # Le HTML capitalise la mention, le texte non : on compare sans la casse.
+    for corps in (texte, html):
+        assert "positive amount is in your favour" in corps.lower()

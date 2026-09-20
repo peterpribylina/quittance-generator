@@ -20,6 +20,7 @@ from .formatting import (
     elision,
     format_amount,
     format_amount_en,
+    format_amount_signe,
     format_date,
     format_date_en,
     montant_en_lettres,
@@ -94,6 +95,13 @@ CONSERVATION_DEPOT = (
 DETAIL_REGULARISATION = (
     "📎 Le détail poste par poste est en pièce jointe : eau, internet et "
     "électricité, avec le coût total de la maison et ta quote-part."
+)
+# Le decompte lui-meme reste en francais : c'est une piece comptable, opposable
+# au meme titre qu'une quittance. Seul l'envoi qui l'accompagne est traduit.
+DETAIL_REGULARISATION_EN = (
+    "📎 The line-by-line breakdown is attached: water, internet and "
+    "electricity, with the total cost of the house and your share. The "
+    "statement itself is in French, as an accounting document."
 )
 
 CONSERVATION_DOMICILE = (
@@ -477,8 +485,36 @@ class Regularisation:
         return docs_dir(self.tenant, root) / self.filename
 
     @property
+    def periode_label_en(self) -> str:
+        """« 1 September 2025 - 30 June 2026 », mois en toutes lettres.
+
+        « 06/09/2026 » se lirait « 9 juin » outre-Atlantique : sur une piece
+        comptable, l'ambiguite n'est pas tenable.
+        """
+        return f"{format_date_en(self.debut)} - {format_date_en(self.fin)}"
+
+    @property
     def email_subject(self) -> str:
-        return f"Régularisation de charges - {self.periode_label}"
+        """Bilingue, comme la quittance : le PDF reste francais, pas l'envoi."""
+        return (
+            f"Régularisation de charges - {self.periode_label} / "
+            f"Service charge statement: {self.periode_label_en}"
+        )
+
+    @property
+    def comparaison(self) -> str:
+        """« 73,59 € par mois contre 70,00 € appelés »."""
+        return (
+            f"{format_amount(self.par_mois(self.total_reel))} par mois contre "
+            f"{format_amount(self.par_mois(self.provisions))} appelés"
+        )
+
+    @property
+    def comparaison_en(self) -> str:
+        return (
+            f"{format_amount_en(self.par_mois(self.total_reel))} per month "
+            f"against {format_amount_en(self.par_mois(self.provisions))} charged"
+        )
 
     def email_body(self, landlord_first_name: str) -> tuple[str, str]:
         prenom = self.tenant.first_name
@@ -489,6 +525,13 @@ class Regularisation:
             if self.solde > 0
             else "ton compte de charges est soldé"
         )
+        sens_en = (
+            f"I owe you {format_amount_en(self.montant_du)}"
+            if self.solde < 0
+            else f"{format_amount_en(self.montant_du)} remains payable"
+            if self.solde > 0
+            else "your charges account is settled"
+        )
         texte = (
             f"Bonjour {prenom},\n\n"
             f"tu trouveras ci-joint la régularisation de tes charges pour "
@@ -496,11 +539,26 @@ class Regularisation:
             f"Les charges réelles s'élèvent à "
             f"{format_amount(self.total_reel)} pour ta part, contre "
             f"{format_amount(self.provisions)} de provisions versées : {sens}.\n\n"
+            f"Soit {self.comparaison}.\n\n"
             + self._dediees_texte()
             + self._lignes_texte()
             + f"{DETAIL_REGULARISATION}\n\n"
             + (f"{self.note}\n\n" if self.note else "")
-            + f"Bien à toi,\n{landlord_first_name}"
+            + f"Bien à toi,\n{landlord_first_name}\n\n"
+            + f"{'-' * 40}\n\n"
+            + f"Hi {prenom},\n\n"
+            + f"please find attached the statement of your service charges for "
+            f"{self.periode_label_en}.\n\n"
+            f"Your share of the actual charges comes to "
+            f"{format_amount_en(self.total_reel)}, against "
+            f"{format_amount_en(self.provisions)} paid in advance: "
+            f"{sens_en}.\n\n"
+            f"That is {self.comparaison_en}.\n\n"
+            + self._dediees_texte(anglais=True)
+            + self._lignes_texte(anglais=True)
+            + f"{DETAIL_REGULARISATION_EN}\n\n"
+            + (f"{self.note}\n\n" if self.note else "")
+            + f"Best,\n{landlord_first_name}"
         )
         blocs = [
             emails.entete("Régularisation de charges", self.periode_label),
@@ -508,7 +566,8 @@ class Regularisation:
                 self.libelle_solde,
                 format_amount(self.montant_du),
                 f"{format_amount(self.total_reel)} de charges réelles contre "
-                f"{format_amount(self.provisions)} versés",
+                f"{format_amount(self.provisions)} versés, soit "
+                f"{self.comparaison}",
                 ton="succes" if self.solde <= 0 else "attention",
             ),
             emails.paragraphe(
@@ -527,11 +586,37 @@ class Regularisation:
         if self.note:
             blocs.append(emails.encart("ℹ️", escape(self.note)))
         blocs.append(emails.signature(f"Bien à toi,<br/>{landlord_first_name}"))
+
+        blocs += [
+            emails.separateur(),
+            emails.langue("English"),
+            emails.paragraphe(
+                f"Hi {prenom},<br/><br/>"
+                f"please find attached the statement of your service charges "
+                f"for <b>{self.periode_label_en}</b>.<br/><br/>"
+                f"Your share of the actual charges comes to "
+                f"<b>{format_amount_en(self.total_reel)}</b>, against "
+                f"<b>{format_amount_en(self.provisions)}</b> paid in advance: "
+                f"<b>{escape(sens_en)}</b>.<br/><br/>"
+                f"That is {escape(self.comparaison_en)}."
+            ),
+        ]
+        if self.dediees:
+            blocs.append(emails.encart("⚡", self._dediees_html(anglais=True)))
+        if self.lignes:
+            blocs.append(emails.encart("✍️", self._lignes_html(anglais=True)))
+        blocs.append(
+            emails.encart("📎", DETAIL_REGULARISATION_EN.removeprefix("📎 "))
+        )
+        if self.note:
+            blocs.append(emails.encart("ℹ️", escape(self.note)))
+        blocs.append(emails.signature(f"Best,<br/>{landlord_first_name}"))
         return texte, emails.document(blocs)
 
     # Le sens de lecture est dit une fois, au lieu d'etre laisse a deviner :
     # « Degradations 120,00 € » ne dit pas si la somme est retenue ou rendue.
     MENTION_SIGNE = "un montant positif est en ta faveur"
+    MENTION_SIGNE_EN = "a positive amount is in your favour"
 
     # Un supplement se conteste s'il n'est pas situe : le locataire doit lire
     # qu'il n'est pas partage, et que le reste l'est comme d'habitude.
@@ -540,32 +625,49 @@ class Regularisation:
         "les autres locataires ; le reste des charges se répartit à la surface, "
         "comme d'habitude."
     )
+    DETAIL_DEDIEES_EN = (
+        "These amounts are charged to you directly and are not shared with the "
+        "other tenants; the rest of the charges is split by floor area, as usual."
+    )
 
-    def _dediees_texte(self) -> str:
+    # Les libelles et motifs sont saisis a la main, en francais : ils valent
+    # pour les deux langues, telles quelles. Seule l'enveloppe se traduit.
+    def _dediees_texte(self, anglais: bool = False) -> str:
         if not self.dediees:
             return ""
         detail = "\n".join(
-            f"  - {motif} : {format_amount(montant)}"
+            f"  - {motif} : {format_amount_en(montant) if anglais else format_amount(montant)}"
             for motif, montant in self.dediees
         )
-        return (
-            f"S'y ajoute ce qui t'est propre :\n{detail}\n\n"
-            f"{self.DETAIL_DEDIEES}\n\n"
-        )
+        titre = "Charged to you alone" if anglais else "S'y ajoute ce qui t'est propre"
+        mention = self.DETAIL_DEDIEES_EN if anglais else self.DETAIL_DEDIEES
+        return f"{titre} :\n{detail}\n\n{mention}\n\n"
 
-    def _dediees_html(self) -> str:
+    def _dediees_html(self, anglais: bool = False) -> str:
         detail = "<br/>".join(
-            f"{escape(motif)} : <b>{escape(format_amount(montant))}</b>"
+            f"{escape(motif)} : <b>"
+            f"{escape(format_amount_en(montant) if anglais else format_amount(montant))}"
+            f"</b>"
             for motif, montant in self.dediees
         )
-        return f"{detail}<br/><br/><i>{self.DETAIL_DEDIEES}</i>"
+        mention = self.DETAIL_DEDIEES_EN if anglais else self.DETAIL_DEDIEES
+        return f"{detail}<br/><br/><i>{mention}</i>"
 
-    def _lignes_texte(self) -> str:
+    def _lignes_texte(self, anglais: bool = False) -> str:
         if not self.lignes:
             return ""
         detail = "\n".join(
-            f"  - {ligne.libelle} : {ligne.montant_label}" for ligne in self.lignes
+            f"  - {ligne.libelle} : "
+            f"{format_amount_signe(ligne.montant) if anglais else ligne.montant_label}"
+            for ligne in self.lignes
         )
+        if anglais:
+            titre = (
+                "One line entered by hand"
+                if len(self.lignes) == 1
+                else "Lines entered by hand"
+            )
+            return f"{titre} ({self.MENTION_SIGNE_EN}) :\n{detail}\n\n"
         titre = (
             "S'y ajoute une ligne portée à la main"
             if len(self.lignes) == 1
@@ -573,12 +675,13 @@ class Regularisation:
         )
         return f"{titre} ({self.MENTION_SIGNE}) :\n{detail}\n\n"
 
-    def _lignes_html(self) -> str:
+    def _lignes_html(self, anglais: bool = False) -> str:
         detail = "<br/>".join(
             f"{escape(ligne.libelle)} : <b>{escape(ligne.montant_label)}</b>"
             for ligne in self.lignes
         )
-        return f"{detail}<br/><br/><i>{self.MENTION_SIGNE.capitalize()}.</i>"
+        mention = self.MENTION_SIGNE_EN if anglais else self.MENTION_SIGNE
+        return f"{detail}<br/><br/><i>{mention.capitalize()}.</i>"
 
 
 @dataclass(frozen=True)
