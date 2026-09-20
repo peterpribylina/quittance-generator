@@ -185,6 +185,12 @@ quittance ou ce recu » et de termes de loyer : il ne s'applique pas a une
 regularisation de charges, et le pied de page revient au document. Seule la
 quittance le porte desormais.
 
+Le graphique est **dimensionne pour qu'une annee tienne sur une page** : 46 pt
+de trace, dont 10 de tete reservee a l'etiquette du pic — sans elle, elle
+s'ecrivait sur la legende. Il n'a pas de titre de section : la legende nomme les
+series et le paragraphe l'annonce, un intitule de plus n'apprenait rien. Il rend
+sa hauteur reelle, libelles de mois compris.
+
 Elle est le **seul document dont la hauteur varie**. Son bloc de cloture mesure
 `HAUTEUR_CLOTURE` (192 pt) et s'ecrivait par-dessus la mention legale des la
 version a trois postes ; il bascule desormais en page suivante quand il

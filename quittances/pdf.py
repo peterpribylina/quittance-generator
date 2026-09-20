@@ -269,15 +269,15 @@ def _draw_comparatif(canvas, regul, haut: float) -> float:
     if not regul.mensuel:
         return 0.0
 
-    HAUTEUR = 104.0
+    HAUTEUR = 46.0
+    # Tete reservee a l'etiquette du pic : sans elle, elle s'ecrivait
+    # par-dessus la legende.
+    TETE = 10.0
     depart = haut
     tranches = regul.tranches
     plafond = regul.plafond_mensuel
     if plafond <= 0:
         return 0.0
-
-    _label(canvas, "Mois par mois", MARGE, haut)
-    haut += 16.0
 
     # Legende : identite portee par un carre et un mot, jamais par la couleur
     # seule. Elle precede le trace, pour se lire avant les barres.
@@ -288,10 +288,10 @@ def _draw_comparatif(canvas, regul, haut: float) -> float:
         x += _pastille(canvas, x, haut, couleur) + 4.0
         _text(canvas, nom, x, haut, FONT, 6.5, GRIS)
         x += canvas.stringWidth(nom, FONT, 6.5) + 14.0
-    haut += 14.0
+    haut += 11.0
 
     base = _y(haut + HAUTEUR)
-    echelle = HAUTEUR / float(plafond)
+    echelle = (HAUTEUR - TETE) / float(plafond)
 
     # Une seule ligne de base, et pas de reglette haute : elle aurait porte la
     # meme valeur que l'etiquette du pic, deux fois la meme chose. Les etiquettes
@@ -335,7 +335,7 @@ def _draw_comparatif(canvas, regul, haut: float) -> float:
             )
     # Hauteur reellement consommee, etiquettes de mois comprises : un forfait
     # laissait l'en-tete du tableau s'ecrire sur « sept. ».
-    return haut + HAUTEUR + 32.0 - depart
+    return haut + HAUTEUR + 28.0 - depart
 
 
 def _draw_watermark(canvas, config: Config, bas: float = 720.0) -> None:
@@ -504,7 +504,7 @@ def render_regularisation(
     # Le tableau suit le paragraphe au lieu de partir d'une ordonnee fixe : le
     # texte gagne ou perd une ligne selon le locataire — prorata, supplements,
     # adresse longue — et l'en-tete venait s'ecrire dessus.
-    haut = max(360.0, 322.0 + hauteur_intro + 20.0)
+    haut = max(348.0, 322.0 + hauteur_intro + 10.0)
 
     haut += _draw_comparatif(canvas, regul, haut)
 
@@ -514,9 +514,9 @@ def render_regularisation(
     _label(canvas, "Poste", MARGE, haut)
     _text_right(canvas, "PAR MOIS", col_mois, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
     _text_right(canvas, "VOTRE PART", col_du, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
-    haut += 16.0
+    haut += 13.0
     _rule(canvas, haut)
-    haut += 12.0
+    haut += 10.0
 
     for poste in regul.postes:
         # Pastille : elle relie la ligne a sa tranche du graphique. L'identite
@@ -530,7 +530,7 @@ def render_regularisation(
             col_mois, haut, FONT, 9.5, GRIS,
         )
         _text_right(canvas, format_amount(montant), col_du, haut, FONT, 9.5)
-        haut += 18.0
+        haut += 15.0
 
     # Supplements imputes a une seule personne. Ils n'ont ni quote-part ni
     # jours a montrer : les melanger aux postes partages rendrait la colonne
@@ -556,7 +556,7 @@ def render_regularisation(
         haut += 12.0
 
     _rule(canvas, haut - 4.0)
-    haut += 8.0
+    haut += 6.0
     for libelle, montant, gras in (
         ("Total des charges réelles", regul.total_reel, True),
         ("Provisions versées", regul.provisions, False),
@@ -568,7 +568,7 @@ def render_regularisation(
             col_mois, haut, police, 9.5, GRIS,
         )
         _text_right(canvas, format_amount(montant), col_du, haut, police, 9.5)
-        haut += 18.0
+        haut += 15.0
 
     # Lignes portees a la main. Le libelle dit pourquoi, le signe dit dans quel
     # sens : « Degradations 120,00 € » ne dirait pas si la somme est retenue ou
@@ -591,7 +591,7 @@ def render_regularisation(
         haut += 12.0
 
     _rule(canvas, haut - 4.0)
-    haut += 8.0
+    haut += 6.0
     _text(canvas, regul.libelle_solde, MARGE, haut, FONT_BOLD, 10.5)
     _text_right(
         canvas, format_amount(regul.par_mois(regul.montant_du)), col_mois, haut,
@@ -601,7 +601,7 @@ def render_regularisation(
         canvas, format_amount(regul.montant_du), col_du, haut,
         FONT_BOLD, 10.5, couleur,
     )
-    haut += 20.0
+    haut += 14.0
 
 
     # Pas de MENTION_LEGALE ici : elle parle de « cette quittance ou ce recu »
@@ -618,7 +618,7 @@ def render_regularisation(
         _draw_header(canvas, config)
         haut = 160.0
 
-    _draw_closing(canvas, config, format_date(regul.issued_on), haut=haut + 4.0)
+    _draw_closing(canvas, config, format_date(regul.issued_on), haut=haut + 2.0)
 
     canvas.showPage()
     canvas.save()
