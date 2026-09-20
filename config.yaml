@@ -132,7 +132,10 @@ tenants:
     property: vals
     room: R+1 cour
     share: 17.61
-    lease_start: 2026-09-01
+    # Entre en 2025, bail reconduit en 2026. C'est la date d'entree dans les
+    # lieux qui compte : l'attestation de domicile et la regularisation de sa
+    # premiere annee en dependent.
+    lease_start: 2025-09-01
     rent: 320.00
     charges: 70.00
 
@@ -153,8 +156,8 @@ tenants:
     # supplementaire ne se deduit pas de la surface.
     charges_dediees:
       - groupe: Électricité
-        montant: 10.00
-        motif: Chauffage supplémentaire (un radiateur et demi)
+        montant: 5.00
+        motif: Chauffage supplémentaire (équivalent à un radiateur et demi)
     title: M
     first_name: Henri
     last_name: Fournet
