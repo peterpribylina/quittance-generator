@@ -269,7 +269,7 @@ def _draw_comparatif(canvas, regul, haut: float) -> float:
     if not regul.mensuel:
         return 0.0
 
-    HAUTEUR = 46.0
+    HAUTEUR = 52.0
     # Tete reservee a l'etiquette du pic : sans elle, elle s'ecrivait
     # par-dessus la legende.
     TETE = 10.0
@@ -279,16 +279,10 @@ def _draw_comparatif(canvas, regul, haut: float) -> float:
     if plafond <= 0:
         return 0.0
 
-    # Legende : identite portee par un carre et un mot, jamais par la couleur
-    # seule. Elle precede le trace, pour se lire avant les barres.
-    x = MARGE
-    for nom, couleur in [("Provision versée", COULEUR_PROVISION)] + [
-        (nom, COULEUR_TRANCHE.get(nom, GRIS)) for nom in tranches
-    ]:
-        x += _pastille(canvas, x, haut, couleur) + 4.0
-        _text(canvas, nom, x, haut, FONT, 6.5, GRIS)
-        x += canvas.stringWidth(nom, FONT, 6.5) + 14.0
-    haut += 11.0
+    # Pas de cartouche de legende : **le tableau en tient lieu**. Chaque ligne
+    # y porte sa pastille, son intitule et son montant — identite jamais reduite
+    # a la couleur, et plus complete qu'une legende, qui n'aurait rien dit des
+    # sommes. Un cartouche aurait repete les memes mots douze lignes plus haut.
 
     base = _y(haut + HAUTEUR)
     echelle = (HAUTEUR - TETE) / float(plafond)
@@ -557,12 +551,19 @@ def render_regularisation(
 
     _rule(canvas, haut - 4.0)
     haut += 6.0
-    for libelle, montant, gras in (
-        ("Total des charges réelles", regul.total_reel, True),
-        ("Provisions versées", regul.provisions, False),
+    for libelle, montant, gras, serie in (
+        ("Total des charges réelles", regul.total_reel, True, False),
+        ("Provisions versées", regul.provisions, False, True),
     ):
         police = FONT_BOLD if gras else FONT
-        _text(canvas, libelle, MARGE, haut, police, 9.5)
+        # Les provisions sont une serie du graphique, au meme titre que les
+        # postes : elles portent donc leur pastille et s'alignent sur eux. Les
+        # deux lignes calculees restent en retrait, sans pastille.
+        decalage = 0.0
+        if serie and regul.mensuel:
+            _pastille(canvas, MARGE, haut - 1.0, COULEUR_PROVISION)
+            decalage = 12.0
+        _text(canvas, libelle, MARGE + decalage, haut, police, 9.5)
         _text_right(
             canvas, format_amount(regul.par_mois(montant)),
             col_mois, haut, police, 9.5, GRIS,

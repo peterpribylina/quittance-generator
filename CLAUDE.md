@@ -185,11 +185,17 @@ quittance ou ce recu » et de termes de loyer : il ne s'applique pas a une
 regularisation de charges, et le pied de page revient au document. Seule la
 quittance le porte desormais.
 
-Le graphique est **dimensionne pour qu'une annee tienne sur une page** : 46 pt
-de trace, dont 10 de tete reservee a l'etiquette du pic — sans elle, elle
-s'ecrivait sur la legende. Il n'a pas de titre de section : la legende nomme les
-series et le paragraphe l'annonce, un intitule de plus n'apprenait rien. Il rend
-sa hauteur reelle, libelles de mois compris.
+Le graphique est **dimensionne pour qu'une annee tienne sur une page** : 52 pt
+de trace, dont 10 de tete reservee a l'etiquette du pic. Il n'a ni titre de
+section ni cartouche de legende — **le tableau en tient lieu**. Chaque ligne y
+porte sa pastille, son intitule et son montant, provisions comprises : identite
+jamais reduite a la couleur, et plus complete qu'une legende, qui n'aurait rien
+dit des sommes. Un cartouche aurait repete les memes mots douze lignes plus
+haut. Les quatre lignes a pastille s'alignent entre elles, les deux lignes
+calculees restent en retrait.
+
+Il rend sa hauteur reelle, libelles de mois compris : un forfait laissait
+l'en-tete du tableau s'ecrire dessus.
 
 Elle est le **seul document dont la hauteur varie**. Son bloc de cloture mesure
 `HAUTEUR_CLOTURE` (192 pt) et s'ecrivait par-dessus la mention legale des la
