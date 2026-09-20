@@ -12,3 +12,6 @@ config.test.yaml
 # Scripts jetables : une regularisation hors modele, une reprise ponctuelle.
 # Ils vivent le temps d une operation et ne font pas partie du paquet.
 regul_*.py
+rapport_*.py
+rapport_*.html
+*.provisions.json
