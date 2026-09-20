@@ -270,9 +270,9 @@ def _draw_comparatif(canvas, regul, haut: float) -> float:
         return 0.0
 
     HAUTEUR = 52.0
-    # Tete reservee a l'etiquette du pic : sans elle, elle s'ecrivait
-    # par-dessus la legende.
-    TETE = 10.0
+    # Tete reservee a l'etiquette du pic. Elle doit loger le texte *entier* :
+    # `_text` positionne le haut des capitales, et la ligne descend ensuite.
+    TETE = 12.0
     depart = haut
     tranches = regul.tranches
     plafond = regul.plafond_mensuel
@@ -325,7 +325,9 @@ def _draw_comparatif(canvas, regul, haut: float) -> float:
                 canvas, etiquette,
                 centre + 1.0 + largeur / 2.0
                 - canvas.stringWidth(etiquette, FONT_BOLD, 6.5) / 2.0,
-                haut + HAUTEUR - empile - 4.0, FONT_BOLD, 6.5, GRIS,
+                # 10 pt : la hauteur de la ligne, plus trois de blanc. A
+                # quatre, le texte retombait sur le sommet de la barre.
+                haut + HAUTEUR - empile - 10.0, FONT_BOLD, 6.5, GRIS,
             )
     # Hauteur reellement consommee, etiquettes de mois comprises : un forfait
     # laissait l'en-tete du tableau s'ecrire sur « sept. ».
