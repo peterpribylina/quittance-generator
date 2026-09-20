@@ -31,7 +31,7 @@ properties:
       # juillet 2026, 128 m3, 925,79 € TTC), majore de 5 % en prevision.
       # Moyenne mensuelle : le detail saisonnier est dans charges.yaml.
       eau_abonnement: 5.04
-      eau_consommation: 74.69
+      eau_consommation: 77.51
       internet: 51.00
   vals:
     address: 14 avenue de Condé, 59300 Valenciennes
@@ -44,7 +44,7 @@ properties:
       # la part fixe, due logement vide ; le reste suit la consommation.
       # Moyenne mensuelle : le detail saisonnier est dans charges.yaml.
       eau_abonnement: 5.03
-      eau_consommation: 96.89
+      eau_consommation: 97.84
       internet: 51.00
   lille:
     address: 84 rue Jules Vallès, 59800 Lille

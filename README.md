@@ -257,19 +257,20 @@ comme l'électricité, s'ajoute simplement.
 L'eau se lit comme l'électricité : une part fixe qui court même logement vide,
 une part qui suit la consommation. Les factures SUEZ annuelles donnent :
 
-| Maison | Période | Conso | Abonnement | Variable |
+| Maison | Période | Conso | Abonnement | Tarif courant |
 |---|---|---|---|---|
-| Valenciennes | sept. 2024 → sept. 2025 | 158 m³ | 57,50 €/an | 7,0079 €/m³ |
-| Anzin | juil. 2025 → juil. 2026 | 128 m³ | 57,55 €/an | 6,5620 €/m³ |
+| Valenciennes | sept. 2024 → sept. 2025 | 158 m³ | 57,50 €/an | 7,0771 €/m³ |
+| Anzin | juil. 2025 → juil. 2026 | 128 m³ | 57,55 €/an | 6,8017 €/m³ |
 
-La consommation est **saisonnière**. À Valenciennes, 0,5487 m³/jour du 24/09 au
-06/04 contre 0,3000 du 07/04 au 23/09 : 1,80 fois plus l'hiver. Chaque fenêtre
-de relevé garde donc son taux journalier, proratisé mois par mois, plutôt qu'une
-moyenne qui se tromperait de 40 % à chaque semestre :
+Le montant d'un mois suit **les m³ relevés sur ce mois**, jamais un douzième de
+l'année : un locataire qui part avant l'été ne doit pas porter les mois creux,
+ni échapper aux mois pleins. À Valenciennes, 0,5487 m³/jour du 24/09 au 06/04
+contre 0,3000 du 07/04 au 23/09 — 1,83 fois plus l'hiver, là où une moyenne
+plate se tromperait de 40 % à chaque semestre :
 
 ```yaml
 vals:
-  2026-12: {eau_abonnement: 5.13, eau_consommation: 124.58, internet: 51.00}
+  2026-12: {eau_abonnement: 5.13, eau_consommation: 126.40, internet: 51.00}
   2027-07: {eau_abonnement: 5.13, eau_consommation: 69.11, internet: 51.00}
 ```
 
@@ -278,9 +279,16 @@ Les deux postes portent le préfixe `eau_` : sans lui, `abonnement` et
 colonne **Eau** sur la régularisation — le locataire lit un poste, le bailleur
 en voit deux.
 
-Les montants inscrits portent une **majoration de 5 %**, prévision de hausse
-pour l'année de bail. Elle ne vise que l'eau : internet est un abonnement ferme,
-l'électricité se relève sur facture.
+**Saisonnalité et tarif sont deux choses.** La saisonnalité vient des m³/jour
+de chaque fenêtre de relevé ; le tarif retenu est celui de la fenêtre **la plus
+récente**, appliqué à toute l'année. Les deux fenêtres d'une facture encadrent
+souvent une révision : à Anzin, GESAV reprend l'assainissement au 01/01/2026 et
+le renchérit de 10,9 %, si bien que garder le prix de la fenêtre d'été aurait
+facturé l'été 2027 au tarif de 2025.
+
+Les montants inscrits portent en plus une **majoration de 5 %**, prévision de
+hausse pour l'année de bail. Elle ne vise que l'eau : internet est un abonnement
+ferme, l'électricité se relève sur facture.
 
 Deux pièges relevés sur les factures réelles. SUEZ **arrondit la TVA ligne à
 ligne** et non sur le total par taux — l'écart atteint 2 centimes, assez pour
@@ -296,7 +304,7 @@ que sous une clé identique.
   vals:
     monthly_charges:
       eau_abonnement: 5.03
-      eau_consommation: 96.89
+      eau_consommation: 97.84
       internet: 51.00
 ```
 

@@ -177,12 +177,19 @@ une cle identique. Laisser `eau: 100` en reference avec `eau_abonnement` au
 journal ferait compter l'eau **deux fois**.
 
 Les deux maisons sont decomposees, chacune depuis sa facture SUEZ annuelle.
-La consommation est **saisonniere** et chaque fenetre de relevi garde son taux
-journalier : a Valenciennes 0,5487 m3/jour du 24/09 au 06/04 contre 0,3000 du
-07/04 au 23/09, soit 1,80 fois plus l'hiver. Une moyenne plate se tromperait de
-40 % a chaque semestre, d'ou le prorata mois par mois. Les fenetres d'Anzin
-(09/07-06/12 et 07/12-08/07) chevauchent les saisons : leur ecart de 1,20 ne se
-compare pas a celui de Valenciennes, il ne dit pas la meme chose.
+Le montant d'un mois suit **les m3 releves sur ce mois**, jamais un douzieme de
+l'annee : un locataire qui part avant l'ete ne doit pas porter les mois creux,
+ni echapper aux mois pleins. A Valenciennes, 0,5487 m3/jour du 24/09 au 06/04
+contre 0,3000 du 07/04 au 23/09 — 1,83 fois plus l'hiver. Une moyenne plate se
+tromperait de 40 % a chaque semestre.
+
+**Saisonnalite et tarif sont deux grandeurs distinctes**, et les melanger fut
+l'erreur du premier jet. La saisonnalite vient des m3/jour de chaque fenetre de
+relevi ; le tarif retenu est celui de la fenetre **la plus recente**, applique a
+toute l'annee. Les deux fenetres d'une facture encadrent souvent une revision :
+a Anzin, GESAV reprend l'assainissement au 01/01/2026 et le rencherit de 10,9 %,
+si bien que garder le prix de la fenetre d'ete aurait facture l'ete 2027 au
+tarif de 2025 — 33,76 € de moins sur l'annee.
 
 **SUEZ arrondit la TVA ligne a ligne**, pas sur le total par taux. Sommer les HT
 par taux avant d'appliquer la TVA donne 2 centimes d'ecart sur Anzin — assez

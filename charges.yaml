@@ -17,71 +17,87 @@
 # ---------------------------------------------------------------------------
 # EAU : decomposee en part fixe (abonnement, du meme logement vide) et part
 # variable (consommation, assainissement, redevances), comme l'electricite.
-# Les taux journaliers viennent des relevis de compteur, chaque fenetre gardant
-# le sien : une moyenne plate ignorerait la saisonnalite.
 #
-# **Les montants portent une majoration de 5 %**, prevision de hausse pour
-# l'annee de bail 2026-2027. Les taux ci-dessous sont ceux constates ; c'est le
-# resultat inscrit qui est majore.
+# Le montant de chaque mois suit **les m3 reellement releves sur ce mois**, et
+# non un douzieme de l'annee. C'est ce qui permet a un locataire qui part avant
+# l'ete de ne pas porter les mois creux — ni d'echapper aux mois pleins.
+#
+# Deux grandeurs distinctes, a ne pas melanger :
+#
+#   * la **saisonnalite** vient des m3/jour de chaque fenetre de relevi ;
+#   * le **tarif** retenu est celui de la fenetre la plus recente, applique a
+#     toute l'annee. Les deux fenetres d'une facture encadrent souvent une
+#     revision tarifaire : garder le prix de l'ancienne reviendrait a facturer
+#     l'ete 2027 au tarif de 2025.
+#
+# **Les montants portent en plus une majoration de 5 %**, prevision de hausse
+# pour l'annee de bail 2026-2027.
 # ---------------------------------------------------------------------------
 
 # Anzin - facture SUEZ n° 1107630321 du 20/07/2026 (juillet 2025 - juillet 2026,
 # 128 m3, 925,79 € TTC en deux factures intermediaires).
 #
-#   part fixe      abonnement distribution 57,55 €/an TTC  ->  0,1577 €/jour
-#   part variable  839,93 € TTC / 128 m3                   ->  6,5620 €/m3 TTC
+#   part fixe   abonnement distribution 57,55 €/an TTC  ->  0,1577 €/jour
+#   tarif       6,8017 €/m3 TTC (fenetre 07/12/2025 - 08/07/2026)
 #
-#   du 09/07 au 06/12 : 0,3194 m3/jour  ->  1,9597 €/jour
-#   du 07/12 au 08/07 : 0,3832 m3/jour  ->  2,6063 €/jour
+#   du 09/07 au 06/12 : 0,3194 m3/jour
+#   du 07/12 au 08/07 : 0,3832 m3/jour
+#
+# Le tarif de l'autre fenetre n'est que de 6,1346 €/m3 : GESAV reprend
+# l'assainissement au 01/01/2026 et le rencherit de 10,9 %. C'est le tarif
+# courant qui vaut pour une prevision.
 #
 # L'abonnement assainissement SUEZ (28,31 € TTC pour le 2e semestre 2025) est
-# **exclu du forfait** : la gestion passe a GESAV au 01/01/2026, qui facture au
-# m3 sans part fixe. Le reconduire surestimerait la part fixe de moitie.
+# **exclu du forfait** : GESAV facture au m3 sans part fixe. Le reconduire
+# surestimerait la part fixe de moitie.
 #
-# Total reconstitue sur l'annee de bail : 956,76 € TTC (SUEZ provisionne 93 €
+# Total reconstitue sur l'annee de bail : 990,52 € TTC (SUEZ provisionne 93 €
 # par mois sur son echeancier, soit 930 €).
 anzin:
-  2026-09: {eau_abonnement: 4.97, eau_consommation: 61.73, internet: 51.00}
-  2026-10: {eau_abonnement: 5.13, eau_consommation: 63.79, internet: 51.00}
-  2026-11: {eau_abonnement: 4.97, eau_consommation: 61.73, internet: 51.00}
-  2026-12: {eau_abonnement: 5.13, eau_consommation: 80.76, internet: 51.00}
+  2026-09: {eau_abonnement: 4.97, eau_consommation: 68.44, internet: 51.00}
+  2026-10: {eau_abonnement: 5.13, eau_consommation: 70.72, internet: 51.00}
+  2026-11: {eau_abonnement: 4.97, eau_consommation: 68.44, internet: 51.00}
+  2026-12: {eau_abonnement: 5.13, eau_consommation: 82.10, internet: 51.00}
   2027-01: {eau_abonnement: 5.13, eau_consommation: 84.83, internet: 51.00}
   2027-02: {eau_abonnement: 4.64, eau_consommation: 76.62, internet: 51.00}
   2027-03: {eau_abonnement: 5.13, eau_consommation: 84.83, internet: 51.00}
   2027-04: {eau_abonnement: 4.97, eau_consommation: 82.10, internet: 51.00}
   2027-05: {eau_abonnement: 5.13, eau_consommation: 84.83, internet: 51.00}
   2027-06: {eau_abonnement: 4.97, eau_consommation: 82.10, internet: 51.00}
-  2027-07: {eau_abonnement: 5.13, eau_consommation: 69.22, internet: 51.00}
-  2027-08: {eau_abonnement: 5.13, eau_consommation: 63.79, internet: 51.00}
+  2027-07: {eau_abonnement: 5.13, eau_consommation: 74.36, internet: 51.00}
+  2027-08: {eau_abonnement: 5.13, eau_consommation: 70.72, internet: 51.00}
 
 # Valenciennes - facture SUEZ n° 1100852426 du 29/09/2025 (septembre 2024 -
 # septembre 2025, 158 m3, 1 164,76 € TTC en deux factures intermediaires).
 #
-#   part fixe      abonnement 57,50 €/an TTC  ->  0,1575 €/jour
-#   part variable  1 107,25 € TTC / 158 m3    ->  7,0079 €/m3 TTC
+#   part fixe   abonnement 57,50 €/an TTC  ->  0,1575 €/jour
+#   tarif       7,0771 €/m3 TTC (fenetre 07/04 - 23/09/2025)
 #
-#   du 07/04 au 23/09 : 0,3000 m3/jour  ->  2,1231 €/jour
-#   du 24/09 au 06/04 : 0,5487 m3/jour  ->  3,8273 €/jour   (1,80 fois plus)
+#   du 07/04 au 23/09 : 0,3000 m3/jour
+#   du 24/09 au 06/04 : 0,5487 m3/jour   (1,83 fois plus l'hiver)
 #
-# Total reconstitue sur l'annee de bail : 1 223,00 € TTC (SUEZ provisionne
+# L'autre fenetre est a 6,9750 €/m3 : la reforme des agences de l'eau du
+# 01/01/2025 tombe en son milieu, l'ecart n'est que de 1,5 %.
+#
+# Total reconstitue sur l'annee de bail : 1 234,47 € TTC (SUEZ provisionne
 # 117 € par mois sur son echeancier, soit 1 170 €).
 vals:
   2026-09:
     eau_abonnement: 4.96
-    eau_consommation: 79.40
+    eau_consommation: 79.82
     internet: 51.00
     # Facture du 28/08/2026 : l'abonnement du 23/08 au 22/09 couvre septembre.
     # La consommation de septembre viendra sur la facture suivante.
     # 19,99 € HT + TVA 20 % : c'est le TTC qui est decaisse. Releve sur
     # facture : pas de majoration previsionnelle.
     electricite: 23.99
-  2026-10: {eau_abonnement: 5.13, eau_consommation: 124.58, internet: 51.00}
-  2026-11: {eau_abonnement: 4.96, eau_consommation: 120.56, internet: 51.00}
-  2026-12: {eau_abonnement: 5.13, eau_consommation: 124.58, internet: 51.00}
-  2027-01: {eau_abonnement: 5.13, eau_consommation: 124.58, internet: 51.00}
-  2027-02: {eau_abonnement: 4.63, eau_consommation: 112.52, internet: 51.00}
-  2027-03: {eau_abonnement: 5.13, eau_consommation: 124.58, internet: 51.00}
-  2027-04: {eau_abonnement: 4.96, eau_consommation: 77.61, internet: 51.00}
+  2026-10: {eau_abonnement: 5.13, eau_consommation: 126.40, internet: 51.00}
+  2026-11: {eau_abonnement: 4.96, eau_consommation: 122.32, internet: 51.00}
+  2026-12: {eau_abonnement: 5.13, eau_consommation: 126.40, internet: 51.00}
+  2027-01: {eau_abonnement: 5.13, eau_consommation: 126.40, internet: 51.00}
+  2027-02: {eau_abonnement: 4.63, eau_consommation: 114.17, internet: 51.00}
+  2027-03: {eau_abonnement: 5.13, eau_consommation: 126.40, internet: 51.00}
+  2027-04: {eau_abonnement: 4.96, eau_consommation: 77.97, internet: 51.00}
   2027-05: {eau_abonnement: 5.13, eau_consommation: 69.11, internet: 51.00}
   2027-06: {eau_abonnement: 4.96, eau_consommation: 66.88, internet: 51.00}
   2027-07: {eau_abonnement: 5.13, eau_consommation: 69.11, internet: 51.00}
