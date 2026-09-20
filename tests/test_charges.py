@@ -246,3 +246,43 @@ def test_preavis_ne_deborde_pas_sur_le_mois_suivant(
     matilde = config.tenant("Matilde")
     assert matilde.fin_due == date(2026, 1, 31)
     assert matilde.jours_occupes(date(2026, 2, 1), date(2026, 2, 28)) == 0
+
+
+def test_les_postes_d_eau_forment_un_seul_groupe() -> None:
+    """Le locataire lit « Eau », pas l'abonnement et la consommation separes."""
+    from quittances.charges import groupe
+
+    assert groupe("eau") == "Eau"
+    assert groupe("eau_abonnement") == "Eau"
+    assert groupe("eau_consommation") == "Eau"
+
+
+def test_abonnement_sans_prefixe_reste_electrique() -> None:
+    """« abonnement » vient des factures TotalEnergies : le prefixe tranche."""
+    from quittances.charges import groupe
+
+    assert groupe("abonnement") == "Électricité"
+    assert groupe("consommation") == "Électricité"
+
+
+def test_reference_decomposee_et_journal_ne_se_cumulent_pas(
+    raw_config: dict, tmp_path: Path
+) -> None:
+    """Un poste du journal remplace sa reference, meme decomposee.
+
+    La reference est passee de « eau » a « eau_abonnement »/« eau_consommation » :
+    si le journal avait garde l'ancienne cle, l'eau aurait ete comptee deux fois.
+    """
+    raw_config["properties"]["anzin"]["monthly_charges"] = {
+        "eau_abonnement": 4.79, "eau_consommation": 92.27, "internet": 51.0
+    }
+    config = Config.from_dict(raw_config, base_dir=tmp_path)
+    fichier = ecrire(
+        tmp_path,
+        {"anzin": {"2026-10": {"eau_abonnement": 4.88, "eau_consommation": 118.65}}},
+    )
+    journal = Charges.load(fichier, config.properties)
+    du_mois = journal.du_mois(config.properties["anzin"], date(2026, 10, 1))
+    assert du_mois.total == Decimal("174.53")     # 4,88 + 118,65 + 51
+    assert du_mois.est_releve("eau_consommation")
+    assert not du_mois.est_releve("internet")

@@ -208,9 +208,19 @@ def repartition(
     return parts, reliquat
 
 
-# Regroupement des postes pour la presentation : l'electricite arrive en
-# plusieurs lignes depuis les factures, elle se lit en une colonne.
-GROUPES = {"eau": "Eau", "internet": "Internet"}
+# Regroupement des postes pour la presentation : une facture arrive en
+# plusieurs lignes, elle se lit en une colonne.
+#
+# L'eau se decompose comme l'electricite, en une part fixe (l'abonnement, du
+# meme logement vide) et une part variable (consommation, assainissement,
+# redevances). Les deux postes sont distincts du cote electricite — sans le
+# prefixe « eau_ », `abonnement` designerait les deux.
+GROUPES = {
+    "eau": "Eau",
+    "eau_abonnement": "Eau",
+    "eau_consommation": "Eau",
+    "internet": "Internet",
+}
 
 
 def groupe(poste: str) -> str:

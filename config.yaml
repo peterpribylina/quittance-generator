@@ -35,7 +35,12 @@ properties:
     charges_folder: C:/Users/P5073668/Documents/quittances/Coloc_Vals/Charges
     # Charges fixes mensuelles, reference 2026.
     monthly_charges:
-      eau: 100.00
+      # Decompose depuis la facture SUEZ du 29/09/2025 (sept. 2024 - sept. 2025,
+      # 158 m3, 1 164,76 € TTC). L'abonnement est la part fixe, due logement
+      # vide ; le reste suit la consommation. Moyenne mensuelle : le detail
+      # saisonnier est dans charges.yaml.
+      eau_abonnement: 4.79
+      eau_consommation: 92.27
       internet: 51.00
   lille:
     address: 84 rue Jules Vallès, 59800 Lille

@@ -252,6 +252,45 @@ Un poste inscrit dans le journal **remplace** sa référence pour ce mois — ut
 quand une facture d'eau s'écarte du montant habituel. Un poste sans référence,
 comme l'électricité, s'ajoute simplement.
 
+#### Décomposer l'eau
+
+L'eau se lit comme l'électricité : une part fixe qui court même logement vide,
+une part qui suit la consommation. La facture SUEZ du 29/09/2025 pour
+Valenciennes (158 m³, 1 164,76 € TTC sur un an) donne :
+
+| | Montant | Par jour |
+|---|---|---|
+| Abonnement (fixe) | 57,50 €/an TTC | 0,1575 € |
+| Consommation et taxes (variable) | 7,0079 €/m³ TTC | 3,0253 € |
+
+La consommation est **saisonnière** : 0,5487 m³/jour du 24/09 au 06/04 contre
+0,3000 du 07/04 au 23/09, soit 1,80 fois plus l'hiver. Le journal proratise donc
+mois par mois sur les deux périodes relevées plutôt que d'étaler une moyenne,
+qui se tromperait de 40 % à chaque semestre :
+
+```yaml
+vals:
+  2026-12: {eau_abonnement: 4.88, eau_consommation: 118.65, internet: 51.00}
+  2027-07: {eau_abonnement: 4.88, eau_consommation: 65.82, internet: 51.00}
+```
+
+Les deux postes portent le préfixe `eau_` : sans lui, `abonnement` et
+`consommation` désigneraient l'électricité. Ils se regroupent en une seule
+colonne **Eau** sur la régularisation — le locataire lit un poste, le bailleur
+en voit deux.
+
+La référence de `config.yaml` porte la **même décomposition**, faute de quoi
+l'eau serait comptée deux fois : un poste du journal ne remplace une référence
+que sous une clé identique.
+
+```yaml
+  vals:
+    monthly_charges:
+      eau_abonnement: 4.79
+      eau_consommation: 92.27
+      internet: 51.00
+```
+
 Les factures se déposent dans `<maison>/Charges/<année>/`, chemin déclaré par
 `charges_folder`.
 

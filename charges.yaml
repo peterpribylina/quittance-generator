@@ -5,16 +5,18 @@
 # montant : une facture d'eau qui s'ecarte de la provision, un mois d'internet
 # offert, une electricite relevee sur facture.
 #
-# L'eau et l'internet sont portes ci-dessous sur toute l'annee de bail, aux
-# montants de reference, pour qu'ils soient ajustables mois par mois sans
-# toucher a `config.yaml`. Attention : un poste present ici est tenu pour
-# **releve** et perd le `~` qui, dans `quittances charges`, signale un montant
-# presume. Retirer une ligne la rend a la reference, et au marqueur.
+# L'eau et l'internet sont portes sur toute l'annee de bail pour etre
+# ajustables mois par mois sans toucher a `config.yaml`. Attention : un poste
+# present ici est tenu pour **releve** et perd le `~` qui, dans
+# `quittances charges`, signale un montant presume. Retirer une ligne la rend a
+# la reference, et au marqueur.
 #
 # L'electricite se releve depuis les factures deposees dans
 # <maison>/Charges/<annee>/ : `quittances factures --ecrire` l'inscrit.
 
 anzin:
+  # Pas encore de facture d'eau depouillee : le forfait de 80 € reste une
+  # reference, a decomposer comme Valenciennes des reception.
   2026-09: {eau: 80.00, internet: 51.00}
   2026-10: {eau: 80.00, internet: 51.00}
   2026-11: {eau: 80.00, internet: 51.00}
@@ -28,22 +30,35 @@ anzin:
   2027-07: {eau: 80.00, internet: 51.00}
   2027-08: {eau: 80.00, internet: 51.00}
 
+# Eau de Valenciennes, reconstituee depuis la facture SUEZ n° 1100852426 du
+# 29/09/2025 (releve du 23/09/2024 au 23/09/2025, 158 m3, 1 164,76 € TTC) :
+#
+#   part fixe      abonnement 57,50 €/an TTC  ->  0,1575 €/jour, du meme vide
+#   part variable  1 107,25 € TTC / 158 m3    ->  7,0079 €/m3 TTC
+#
+# La consommation est saisonnière : 0,5487 m3/jour du 24/09 au 06/04 contre
+# 0,3000 du 07/04 au 23/09, soit 1,80 fois plus l'hiver. Une moyenne plate se
+# tromperait de 40 % a chaque semestre, d'ou le prorata mois par mois sur les
+# deux periodes relevees — le meme principe que l'electricite.
+#
+# Total reconstitue sur l'annee de bail : 1 164,77 € (1 cent d'arrondi).
 vals:
   2026-09:
-    eau: 100.00
+    eau_abonnement: 4.73
+    eau_consommation: 75.62
     internet: 51.00
     # Facture du 28/08/2026 : l'abonnement du 23/08 au 22/09 couvre septembre.
     # La consommation de septembre viendra sur la facture suivante.
     # 19,99 € HT + TVA 20 % : c'est le TTC qui est decaisse.
     electricite: 23.99
-  2026-10: {eau: 100.00, internet: 51.00}
-  2026-11: {eau: 100.00, internet: 51.00}
-  2026-12: {eau: 100.00, internet: 51.00}
-  2027-01: {eau: 100.00, internet: 51.00}
-  2027-02: {eau: 100.00, internet: 51.00}
-  2027-03: {eau: 100.00, internet: 51.00}
-  2027-04: {eau: 100.00, internet: 51.00}
-  2027-05: {eau: 100.00, internet: 51.00}
-  2027-06: {eau: 100.00, internet: 51.00}
-  2027-07: {eau: 100.00, internet: 51.00}
-  2027-08: {eau: 100.00, internet: 51.00}
+  2026-10: {eau_abonnement: 4.88, eau_consommation: 118.65, internet: 51.00}
+  2026-11: {eau_abonnement: 4.73, eau_consommation: 114.82, internet: 51.00}
+  2026-12: {eau_abonnement: 4.88, eau_consommation: 118.65, internet: 51.00}
+  2027-01: {eau_abonnement: 4.88, eau_consommation: 118.65, internet: 51.00}
+  2027-02: {eau_abonnement: 4.41, eau_consommation: 107.17, internet: 51.00}
+  2027-03: {eau_abonnement: 4.88, eau_consommation: 118.65, internet: 51.00}
+  2027-04: {eau_abonnement: 4.73, eau_consommation: 73.92, internet: 51.00}
+  2027-05: {eau_abonnement: 4.88, eau_consommation: 65.82, internet: 51.00}
+  2027-06: {eau_abonnement: 4.73, eau_consommation: 63.69, internet: 51.00}
+  2027-07: {eau_abonnement: 4.88, eau_consommation: 65.82, internet: 51.00}
+  2027-08: {eau_abonnement: 4.88, eau_consommation: 65.82, internet: 51.00}

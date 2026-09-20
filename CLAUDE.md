@@ -164,8 +164,28 @@ Deux natures de charges, deux emplacements : les **fixes** dans `config.yaml`
 par facture dans `charges.yaml` (electricite). Un poste du journal **remplace**
 sa reference pour ce mois ; un poste sans reference s'ajoute.
 
-L'eau et l'internet sont desormais portes au journal sur toute l'annee de bail,
-aux montants de reference, pour etre ajustables mois par mois. Consequence
+L'eau de Valenciennes est **decomposee comme l'electricite**, en part fixe
+(`eau_abonnement`, l'abonnement SUEZ, du meme logement vide) et part variable
+(`eau_consommation`). Les deux portent le prefixe `eau_` parce que
+`abonnement` et `consommation` sans prefixe designent deja l'electricite, et
+`charges.GROUPES` les ramene tous deux a « Eau » : le locataire lit une
+colonne, le bailleur en voit deux.
+
+La reference de `config.yaml` porte la **meme decomposition** que le journal.
+C'est une contrainte, pas un choix : `du_mois` ne remplace une reference que par
+une cle identique. Laisser `eau: 100` en reference avec `eau_abonnement` au
+journal ferait compter l'eau **deux fois**.
+
+Le forfait vient de la facture SUEZ du 29/09/2025 (158 m3, 1 164,76 € TTC) :
+abonnement 57,50 €/an, soit 0,1575 €/jour ; variable 7,0079 €/m3. La
+consommation est **saisonniere** — 0,5487 m3/jour du 24/09 au 06/04 contre
+0,3000 du 07/04 au 23/09, 1,80 fois plus l'hiver — d'ou un prorata mois par
+mois sur les deux periodes relevees plutot qu'une moyenne plate, qui se
+tromperait de 40 % a chaque semestre. Anzin n'a pas encore de facture
+depouillee et garde son forfait de 80 €.
+
+L'eau et l'internet sont portes au journal sur toute l'annee de bail pour etre
+ajustables mois par mois. Consequence
 assumee : un poste present dans le journal est tenu pour **releve** et perd son
 `~`. Retirer la ligne le rend a la reference, et au marqueur.
 
