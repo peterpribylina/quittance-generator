@@ -339,12 +339,18 @@ def render_regularisation(
         if regul.dediees
         else ""
     )
+    # La note rejoint le paragraphe d'introduction au lieu de former un bloc
+    # sous les totaux. Elle y disait l'adresse une seconde fois, et se lisait
+    # comme un ajout apres coup alors qu'elle situe le decompte : le lecteur
+    # doit l'avoir avant les chiffres, pas apres.
+    contexte = f" {escape(regul.note)}" if regul.note else ""
     hauteur_intro = _paragraph(
         canvas,
         f"Charges réelles du logement situé au {_bold(tenant.address)}, "
         f"réparties sur chaque poste au prorata de la surface occupée "
-        f"({escape(tenant.share_label)}){prorata}. La colonne PAR MOIS ramène "
-        f"votre part à un coût mensuel, comparable à vos provisions.{reserve}",
+        f"({escape(tenant.share_label)}){prorata}.{contexte} La colonne PAR "
+        f"MOIS ramène votre part à un coût mensuel, comparable à vos "
+        f"provisions.{reserve}",
         MARGE, 322.0, DROITE - MARGE, CORPS_GAUCHE,
     )
 
@@ -454,10 +460,6 @@ def render_regularisation(
     )
     haut += 20.0
 
-    if regul.note:
-        haut += _paragraph(
-            canvas, escape(regul.note), MARGE, haut, DROITE - MARGE, CORPS_GAUCHE
-        ) + 12.0
 
     # Pas de MENTION_LEGALE ici : elle parle de « cette quittance ou ce recu »
     # et de termes de loyer, ce qu'une regularisation de charges n'est pas. Le

@@ -148,9 +148,15 @@ appelee chaque mois sur la quittance. Les mois se comptent en calendaire et non
 en jours — une regularisation va du 1er a une fin de mois, et 303 jours donnerait
 9,96 mois la ou le locataire en compte dix.
 
+La `note` **rejoint le paragraphe d'introduction** au lieu de former un bloc
+sous les totaux. Elle y repetait l'adresse et se lisait comme un ajout apres
+coup, alors qu'elle situe le decompte : le lecteur doit l'avoir avant les
+chiffres. Elle n'a donc a dire que ce que le paragraphe ne dit pas deja.
+
 Le tableau part de `322 + hauteur du paragraphe` et non d'une ordonnee fixe :
 le texte gagne ou perd une ligne selon le locataire, et l'en-tete venait
-s'ecrire dessus.
+s'ecrire dessus. C'est ce qui permet a la note d'allonger l'introduction sans
+rien casser.
 
 Le **PDF est en francais**, l'**email bilingue**. Le decompte est une piece
 comptable, opposable comme une quittance ; l'envoi qui l'accompagne s'adresse a
