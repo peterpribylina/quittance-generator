@@ -152,6 +152,13 @@ Le tableau part de `322 + hauteur du paragraphe` et non d'une ordonnee fixe :
 le texte gagne ou perd une ligne selon le locataire, et l'en-tete venait
 s'ecrire dessus.
 
+Le **PDF est en francais**, l'**email bilingue**. Le decompte est une piece
+comptable, opposable comme une quittance ; l'envoi qui l'accompagne s'adresse a
+des locataires dont la moitie ne lit pas le francais. L'encart anglais annonce
+que la piece jointe est en francais, pour que ce ne soit pas une surprise. Les
+libelles et motifs, saisis a la main, valent pour les deux langues telles
+quelles — seule l'enveloppe se traduit.
+
 `Tenant.lignes_manuelles` porte ce qui ne se calcule pas : geste commercial,
 retenue pour degradations. **Le signe se lit en faveur du locataire** — positif,
 la somme lui revient — alors que `solde` compte ce qu'il doit. Le retournement

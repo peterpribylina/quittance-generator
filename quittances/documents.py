@@ -358,8 +358,10 @@ class Regularisation:
     Le **solde est negatif quand le locataire a trop verse** : la somme lui est
     due. C'est le sens retenu par les regularisations deja etablies a la main.
 
-    Reste **en francais uniquement** : c'est une piece comptable, opposable au
-    meme titre qu'une quittance.
+    Le **PDF reste en francais** : c'est une piece comptable, opposable au meme
+    titre qu'une quittance. L'email qui l'accompagne est bilingue, lui, et le
+    dit — la moitie des locataires ne lisent pas le francais, et le decompte
+    annuel est le message qu'il ne faut pas laisser deviner.
     """
 
     tenant: Tenant
