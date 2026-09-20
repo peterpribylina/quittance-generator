@@ -371,9 +371,24 @@ comme une vacance d'un centime serait un contresens.
 Les provisions retenues sont celles réellement facturées sur les quittances —
 celles du bail, corrigées des ajustements du mois.
 
-Le document affiche une colonne **JOURS** à côté de la quote-part : sans elle,
-une part proratisée est irréconciliable avec le coût de la maison. Le calcul se
-lit de bout en bout — 100,00 € × 18,81 % × 19/30 = 11,91 €.
+Le tableau porte une colonne **PAR MOIS**, seule grandeur directement
+comparable à la provision appelée chaque mois sur la quittance :
+
+```
+  POSTE                     MAISON    PAR MOIS   VOTRE PART
+  Eau                     793,55 €     18,06 €     180,61 €
+  Internet                510,00 €     11,61 €     116,08 €
+  Électricité           1 929,79 €     43,92 €     439,22 €
+  Total des charges réelles            73,59 €     735,91 €
+  Provisions versées                   70,00 €     700,00 €
+  Reste à payer                         3,59 €      35,91 €
+```
+
+La quote-part et les jours ne sont **pas** en colonnes : ils valent la même chose
+sur chaque ligne. La phrase d'introduction les dit une fois, et les jours n'y
+apparaissent que lorsqu'un prorata s'applique vraiment — « 303/303 » ne veut rien
+dire. Quand il joue, le calcul se lit de bout en bout : 100,00 € × 18,81 % ×
+19/30 = 11,91 €.
 
 **Le mois de départ est dû en entier** dès lors que le préavis a été respecté,
 ce qui est le cas par défaut. Un départ sans préavis se prorate au nombre de

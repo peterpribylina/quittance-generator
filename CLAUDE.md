@@ -132,10 +132,25 @@ vrai — le cas par defaut : un preavis respecte rend le mois de depart
 entierement du. Un depart sans preavis se prorate, et la part non couverte
 remonte sur la ligne Bailleur.
 
-Le document porte une colonne **JOURS** (`jours_dus` / `jours_periode`). Sans
-elle, une part proratisee est irreconciliable avec le cout de la maison : le
-locataire voit 11,91 € la ou sa quote-part de 18,81 % sur 100 € donnerait
-18,81 €. Le facteur manquant doit etre imprime.
+Le tableau ne porte **ni quote-part ni jours en colonnes** : ils valaient la
+meme chose sur chaque ligne, et trois colonnes identiques n'apprennent rien. La
+phrase d'introduction les dit une fois, et les jours n'y figurent que lorsqu'un
+prorata s'applique reellement — « 303/303 » ne veut rien dire.
+
+Le facteur reste neanmoins indispensable quand il joue : sans lui, une part
+proratisee est irreconciliable avec le cout de la maison, le locataire lisant
+11,91 € la ou 18,81 % de 100 € donnerait 18,81 €. D'ou la clause « et de N jours
+d'occupation sur M », que `prorata_applique` declenche.
+
+La colonne **PAR MOIS** (`par_mois`, sur `mois_periode` mois calendaires) a pris
+leur place : c'est la seule grandeur directement comparable a la provision
+appelee chaque mois sur la quittance. Les mois se comptent en calendaire et non
+en jours — une regularisation va du 1er a une fin de mois, et 303 jours donnerait
+9,96 mois la ou le locataire en compte dix.
+
+Le tableau part de `322 + hauteur du paragraphe` et non d'une ordonnee fixe :
+le texte gagne ou perd une ligne selon le locataire, et l'en-tete venait
+s'ecrire dessus.
 
 `Tenant.lignes_manuelles` porte ce qui ne se calcule pas : geste commercial,
 retenue pour degradations. **Le signe se lit en faveur du locataire** — positif,

@@ -339,23 +339,32 @@ def render_regularisation(
         if regul.dediees
         else ""
     )
-    _paragraph(
+    hauteur_intro = _paragraph(
         canvas,
         f"Charges réelles du logement situé au {_bold(tenant.address)}, "
-        f"réparties au prorata de la surface occupée "
-        f"({escape(tenant.share_label)}){prorata}.{reserve}",
+        f"réparties sur chaque poste au prorata de la surface occupée "
+        f"({escape(tenant.share_label)}){prorata}. La colonne PAR MOIS ramène "
+        f"votre part à un coût mensuel, comparable à vos provisions.{reserve}",
         MARGE, 322.0, DROITE - MARGE, CORPS_GAUCHE,
     )
 
-    # Tableau : maison, quote-part, part du locataire.
-    col_maison, col_part = DROITE - 320.0, DROITE - 210.0
-    col_jours, col_du = DROITE - 110.0, DROITE
+    # Tableau : cout de la maison, cout mensuel, part du locataire.
+    #
+    # La quote-part et les jours ne sont plus en colonnes : ils valaient la
+    # meme chose sur chaque ligne, et trois colonnes identiques n'apprennent
+    # rien. La phrase d'introduction les porte une fois. Le cout mensuel les
+    # remplace, seule grandeur directement comparable a la provision appelee
+    # chaque mois sur la quittance.
+    col_maison = DROITE - 230.0
+    col_mois, col_du = DROITE - 110.0, DROITE
     largeur_libelle = (DROITE - 70.0) - MARGE
-    haut = 370.0
+    # Le tableau suit le paragraphe au lieu de partir d'une ordonnee fixe : le
+    # texte gagne ou perd une ligne selon le locataire — prorata, supplements,
+    # adresse longue — et l'en-tete venait s'ecrire dessus.
+    haut = max(370.0, 322.0 + hauteur_intro + 22.0)
     _label(canvas, "Poste", MARGE, haut)
     _text_right(canvas, "MAISON", col_maison, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
-    _text_right(canvas, "PART", col_part, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
-    _text_right(canvas, "JOURS", col_jours, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
+    _text_right(canvas, "PAR MOIS", col_mois, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
     _text_right(canvas, "VOTRE PART", col_du, haut, FONT_BOLD, 6.5, GRIS_MOYEN)
     haut += 16.0
     _rule(canvas, haut)
@@ -368,13 +377,12 @@ def render_regularisation(
             format_amount(regul.totaux_maison.get(poste, Decimal("0"))),
             col_maison, haut, FONT, 9.5, GRIS,
         )
-        _text_right(canvas, tenant.share_label, col_part, haut, FONT, 9.5, GRIS)
-        _text_right(canvas, regul.jours_label, col_jours, haut, FONT, 9.5, GRIS)
+        montant = regul.reel.get(poste, Decimal("0"))
         _text_right(
-            canvas,
-            format_amount(regul.reel.get(poste, Decimal("0"))),
-            col_du, haut, FONT, 9.5,
+            canvas, format_amount(regul.par_mois(montant)),
+            col_mois, haut, FONT, 9.5, GRIS,
         )
+        _text_right(canvas, format_amount(montant), col_du, haut, FONT, 9.5)
         haut += 18.0
 
     # Supplements imputes a une seule personne. Ils n'ont ni quote-part ni
@@ -383,6 +391,10 @@ def render_regularisation(
     if regul.dediees:
         for motif, montant in regul.dediees:
             replis = _wrap(canvas, motif, FONT, 9.5, largeur_libelle)
+            _text_right(
+                canvas, format_amount(regul.par_mois(montant)),
+                col_mois, haut, FONT, 9.5, GRIS,
+            )
             _text_right(canvas, format_amount(montant), col_du, haut, FONT, 9.5)
             for repli in replis:
                 _text(canvas, repli, MARGE, haut, FONT, 9.5)
@@ -402,6 +414,10 @@ def render_regularisation(
     ):
         police = FONT_BOLD if gras else FONT
         _text(canvas, libelle, MARGE, haut, police, 9.5)
+        _text_right(
+            canvas, format_amount(regul.par_mois(montant)),
+            col_mois, haut, police, 9.5, GRIS,
+        )
         _text_right(canvas, format_amount(montant), col_du, haut, police, 9.5)
         haut += 18.0
 
@@ -428,6 +444,10 @@ def render_regularisation(
     _rule(canvas, haut - 4.0)
     haut += 8.0
     _text(canvas, regul.libelle_solde, MARGE, haut, FONT_BOLD, 10.5)
+    _text_right(
+        canvas, format_amount(regul.par_mois(regul.montant_du)), col_mois, haut,
+        FONT_BOLD, 10.5, GRIS,
+    )
     _text_right(
         canvas, format_amount(regul.montant_du), col_du, haut,
         FONT_BOLD, 10.5, couleur,

@@ -388,6 +388,25 @@ class Regularisation:
         return 0 < self.jours_dus < self.jours_periode
 
     @property
+    def mois_periode(self) -> int:
+        """Nombre de mois couverts, au moins un.
+
+        Les regularisations vont du 1er a une fin de mois, et les provisions
+        sont mensuelles : compter les mois calendaires donne le diviseur que le
+        locataire a en tete, la ou un ratio de jours donnerait 9,96.
+        """
+        ecart = (self.fin.year - self.debut.year) * 12 + self.fin.month - self.debut.month
+        return max(1, ecart + 1)
+
+    def par_mois(self, montant: Decimal) -> Decimal:
+        """Ramene un montant de la periode a un cout mensuel.
+
+        C'est la seule grandeur directement comparable a la provision appelee
+        chaque mois sur la quittance.
+        """
+        return (montant / self.mois_periode).quantize(Decimal("0.01"))
+
+    @property
     def total_dediees(self) -> Decimal:
         return sum(
             (montant for _, montant in self.dediees), Decimal("0.00")
